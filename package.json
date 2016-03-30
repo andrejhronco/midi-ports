@@ -7,7 +7,7 @@
     "type": "git",
     "url": "git://github.com/AndrejHronco/midi-ports.git"
   },
-  "homepage": "https://github.com/AndrejHronco/midi-ports"
+  "homepage": "https://github.com/AndrejHronco/midi-ports",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
