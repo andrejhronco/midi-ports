@@ -1,0 +1,13 @@
+{
+  "name": "midi-ports",
+  "version": "1.0.0",
+  "description": "Returns an object of attached midi ports with inputID, outputID, name, and manufacturer for more semantic MIDI port access.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Andrej Hronco",
+  "license": "MIT",
+  "devDependencies": {},
+  "dependencies": {}
+}
