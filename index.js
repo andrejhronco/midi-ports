@@ -58,7 +58,8 @@ function buildDevices(deviceNames, ports, source){
  * @param {Object} sourceDevices - initial MIDI devices
  * @returns {Object} All MIDI devices with port [name, ID, manufacturer] properties
  */
-function midiPorts(midi, source = {}){
+function midiPorts(midi, source){
+	source = source || {}
 	/**
 	* @var {Array} deviceNames - desired device names
 	*/ 
