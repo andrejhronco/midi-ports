@@ -5,7 +5,7 @@
  * @returns {Object} Port map of device properties' port (input & output) properties [name, ID, manufacturer]
  */
 function getPorts(midi){
-	let portMap = {}
+	var portMap = {}
 	
 	midi.inputs.forEach(function(device){
 		portMap[format(device.name)] = { 
@@ -30,13 +30,13 @@ function getPorts(midi){
  * @returns {Object} devices with port data
  */
 function buildDevices(deviceNames, ports, source){
-	let props = ['name', 'inputID', 'outputID', 'manufacturer']
+	var props = ['name', 'inputID', 'outputID', 'manufacturer']
 
 	if(!Object.keys(source).length) source = Object.assign({}, ports)
 	/**
 	 * @var {Array} devices - copied source devices
 	 */
-	let devices = Object.assign({}, source)
+	var devices = Object.assign({}, source)
 
 	deviceNames.forEach(function(device){
 		Object.keys(ports).forEach(function(port){
@@ -62,17 +62,17 @@ function midiPorts(midi, source = {}){
 	/**
 	* @var {Array} deviceNames - desired device names
 	*/ 
-	let deviceNames = Object.keys(source)
+	var deviceNames = Object.keys(source)
 
 	/**
 	* @var {Object} ports - device ports (input & output) with properties [name, ID, manufacturer]
 	*/ 
-	let ports = getPorts(midi)
+	var ports = getPorts(midi)
 	
 	/**
 	* @var {Object} devices - All MIDI devices with port [name, ID, manufacturer] properties
 	*/ 
-	let devices = buildDevices(deviceNames, ports, source)
+	var devices = buildDevices(deviceNames, ports, source)
 
 	return devices;
 }
