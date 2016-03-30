@@ -1,13 +1,19 @@
 {
   "name": "midi-ports",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Returns an object of attached midi ports with inputID, outputID, name, and manufacturer for more semantic MIDI port access.",
   "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/AndrejHronco/midi-ports.git"
+  },
+  "homepage": "https://github.com/AndrejHronco/midi-ports"
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Andrej Hronco",
   "license": "MIT",
+  "keywords": ["webmidi", "midiports", "midi", "ports"],
   "devDependencies": {},
   "dependencies": {}
 }
