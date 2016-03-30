@@ -1,6 +1,6 @@
 #midi-ports
 
-Returns an object of attached midi ports with inputID, outputID, name, and manufactuer for more symantic MIDI port access.
+Returns an object of attached **web midi** ports with inputID, outputID, name, and manufactuer for more symantic MIDI port access.
 
 ##install
 ```javascript
@@ -9,6 +9,10 @@ npm install midi-ports --save
 ##usage
 ```javascript
 import midiPorts from 'midi-ports'
+
+let midi;
+
+navigator.requestMIDIAccess({sysex: true}).then((midiAccess) => midi = midiAccess)
 
 let ports = midiPorts(midi, [options])
 /*
