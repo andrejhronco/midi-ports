@@ -1,6 +1,6 @@
 {
   "name": "midi-ports",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Returns an object of attached midi ports with inputID, outputID, name, and manufacturer for more semantic MIDI port access.",
   "main": "index.js",
   "repository": {
