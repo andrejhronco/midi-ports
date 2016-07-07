@@ -15,7 +15,7 @@ function getPorts(midi){
 	})
 
 	midi.outputs.forEach(function(device){
-		portMap[format(device.name)]['outputID'] = format(device.id)
+		if(portMap[format(device.name)]) portMap[format(device.name)]['outputID'] = format(device.id)
 	})
 
 	return portMap;
