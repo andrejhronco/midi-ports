@@ -38,6 +38,8 @@ function buildDevices(deviceNames, ports, source){
 	 */
 	var devices = Object.assign({}, source)
 
+	devices['notfound'] = []
+	// build devices
 	deviceNames.forEach(function(device){
 		Object.keys(ports).forEach(function(port){
 			if(devices[device][port]) {
@@ -46,7 +48,24 @@ function buildDevices(deviceNames, ports, source){
 				})
 			}
 		})
+		// populate notfound
+		Object.keys(devices[device]).forEach(function(port) {
+		  if (!Object.keys(devices[device][port]).length) {
+		    devices['notfound'].push(device)
+		  }
+		})
 	})
+
+	// remove notfound devices
+	if (devices['notfound'].length) {
+	  devices['notfound'].forEach(function(device) {
+	    delete devices[device]
+	  })
+	  // if a device is not found add all ports
+	  devices['ports'] = ports
+	} else {
+	  delete devices['notfound']
+	}
 
 	return devices
 }

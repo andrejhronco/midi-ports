@@ -10,13 +10,15 @@ npm install midi-ports --save
 ```javascript
 import midiPorts from 'midi-ports'
 
-let midi;
+let midi, ports;
 
-navigator.requestMIDIAccess({sysex: true}).then((midiAccess) => midi = midiAccess)
-
-let ports = midiPorts(midi, [options])
+navigator.requestMIDIAccess({sysex: true})
+	.then((midiAccess) => {
+		midi = midiAccess
+		ports = midiPorts(midi [,options])
+	})
 /*
-=> 
+ports =>
 {
 	'k-mix-audio-control': {
 		name: 'K-Mix Audio Control',
@@ -86,3 +88,36 @@ let devices = midiPorts(midi, allowed)
 let kmixOutput = midi.outputs.get(devices['k-mix']['k-mix-audio-control'].outputID)
 
 kmixOutput.send([240, 126, 127, 6, 1, 247])
+```
+##Error Handling
+New in 1.1.0.
+If you're passing in an 'allowed devices' object and that device is not connected/found, midi-ports will add a property called 'notfound' populated with not found device names allowing for easy error handlng. Additionally, a 'ports' property with _*all*_ connected ports will be added as well, allowing you setup fallback ports if desired.
+
+In the case above, if 'k-mix' is not connected/found, midi-ports will return an object like this:
+
+```javascript
+/*
+ports =>
+{
+	'notfound': ['k-mix'],
+	'ports: {
+		'k-board': {
+			inputID: "1852960744",
+			manufacturer: "kesumo-llc",
+			name: "K-Board",
+			outputID: "-162522465"
+		}
+	}
+}
+*/
+```
+Which makes it easy to use alternative ports if your desired port isn't connected/found:
+
+```javascript
+if(ports['notfound']){
+	console.log('Device ' + ports['notfound'][0] + ' not found)
+	
+	// use a port from ports[ports]
+	...
+}
+```
