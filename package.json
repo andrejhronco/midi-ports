@@ -1,6 +1,6 @@
 {
   "name": "midi-ports",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Wraps the MIDIAccess object and builds an object of midi devices with name, inputID, outputID, and manufacturer allowing a more semantic way of interacting with midi devices in the browser.",
   "main": "index.js",
   "repository": {
