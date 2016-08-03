@@ -1,7 +1,7 @@
 {
   "name": "midi-ports",
   "version": "2.0.0",
-  "description": "Returns an object of attached midi ports with inputID, outputID, name, and manufacturer for more semantic MIDI port access.",
+  "description": "Wraps the MIDIAccess object and builds an object of midi devices with name, inputID, outputID, and manufacturer allowing a more semantic way of interacting with midi devices in the browser.",
   "main": "index.js",
   "repository": {
     "type": "git",

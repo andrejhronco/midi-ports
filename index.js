@@ -1,4 +1,4 @@
-  /**
+/**
    * MIDI device port (input & output) properties [name, ID, manufacturer]
    * @function
    * @param {Object} midi - MIDI access object
@@ -37,9 +37,9 @@ function buildDevices(deviceNames, ports, source) {
     /**
      * @let {Array} devices - copied source devices
      */
-  let devices = Object.assign({}, source)
+  let devices = Object.assign({}, source), 
+      notfound = []
 
-  devices.notfound = []
   // build devices
   deviceNames.forEach(function(device) {
     Object.keys(ports).forEach(function(port) {
@@ -52,26 +52,23 @@ function buildDevices(deviceNames, ports, source) {
     // populate notfound with port
     Object.keys(devices[device]).forEach(function(port) {
       if (!Object.keys(devices[device][port]).length) {
-        devices.notfound.push(port)
+        notfound.push(port)
       }
     })
   })
-  // remove notfound ports
-  if (devices.notfound.length) {
+  // remove notfound ports from devices
+  if (notfound.length) {
     Object.keys(devices).forEach(function(device) {
-    	if(device !== 'notfound'){
-	    	Object.keys(devices[device]).forEach(function(port){
-        	if(devices.notfound.includes(port)) delete devices[device]
-      	})
-      }  
+      Object.keys(devices[device]).forEach(function(port){
+        if(notfound.includes(port)) delete devices[device]
+      })
     })
-    // if a device is not found add all ports
-    devices.ports = ports
-  } else {
-    delete devices.notfound
   }
 
-  return devices
+  return {
+   devices: devices,
+   notfound: notfound
+  }
 }
 
 /**
@@ -81,63 +78,77 @@ function buildDevices(deviceNames, ports, source) {
  * @param {Object} sourceDevices - initial MIDI devices
  * @returns {Function} Allowing access to midi access object, ports, device object, and notfound
  */
-function midiPorts(midi, source) {
-  source = source || {}
-    /**
-     * @let {Array} deviceNames - desired device names
-     */
+function midiPorts(midi, source = {}) {
+  let collections = {
+    'access': {},
+    'ports': {},
+    'devices' :{},
+    'notfound' : []
+  }
+
+  /**
+   * @let {Array} deviceNames - desired device names
+   */
   let deviceNames = Object.keys(source)
 
   /**
-   * @let {Object} ports - device ports (input & output) with properties [name, ID, manufacturer]
+   * {Object} midiAccess - midi access object from successful request
    */
-  let ports = getPorts(midi)
+  collections.access = midi
 
   /**
-   * @let {Object} devices - All MIDI devices with port [name, ID, manufacturer] properties
+   * {Object} ports - device ports (input & output) with properties [name, ID, manufacturer]
    */
-  let devices = buildDevices(deviceNames, ports, source)
+  collections.ports = getPorts(midi)
 
-  devices.access = midi
-	/**
-	* Returns midi access object, ports, device object, and notfound
-	* @Function
-	* param {String} 'access', 'midi', 'notfound', or 'device:port' to get props from
-	* @example
-	* // returns device object
-	* ports('devices')
-	* @example
-	* // returns full midi access object
-	* ports('access')
-	* @example
-	* // returns midi inputs Iterator
-	* ports('midi').get('inputs')
-	* @example
-	* // returns Boolean if desired / allowed ports are not found
-	* ports('notfound')
-	*/
+  /**
+   * @let {Object} built - All MIDI devices with port [name, ID, manufacturer] properties, notfound devices
+   */
+  let built = buildDevices(deviceNames, collections.ports, source)
+  collections.devices = built.devices
+  collections.notfound = built.notfound
+  
+  /**
+  * Returns midi access object, ports, device object, and notfound
+  * @Function
+  * param {String} 'access', 'midi', 'notfound', or 'device:port' to get props from
+  * @example
+  * // returns device object
+  * ports('devices')
+  * @example
+  * // returns full midi access object
+  * ports('access')
+  * @example
+  * // returns midi inputs Iterator
+  * ports('midi').get('inputs')
+  * @example
+  * // returns Boolean if desired / allowed ports are not found
+  * ports('notfound')
+  */
+ 
   return function(device = 'midi') {
     // tests
     let isAccess = (device === 'access'.toLowerCase()) ? true : false,
         isMIDI = (device === 'midi'.toLowerCase()) ? true : false,
         isDevices = (device === 'devices'.toLowerCase()) ? true : false,
+        isPorts = (device === 'ports'.toLowerCase()) ? true : false,
         isNotFound = (device === 'notfound'.toLowerCase()) ? true : false,
-        notFound = (devices['notfound'] && devices['notfound'].length) ? true : false,
+        notFound = (collections.notfound.length) ? true : false,
         isDevicePort = (!isAccess && device.toLowerCase().includes(':')) ? true : false,
-        inDevices = (device in devices) ? true : false;
+        inDevices = (device in collections.ports || device in collections.devices) ? true : false;
     // device:port
     let dvc = (isDevicePort) ? device.split(':') : device,
-        inDevicesPort = (isDevicePort && dvc[1] in devices[dvc[0]]) ? true : false;
+        inDevicesPort = (isDevicePort && collections.devices[dvc[0]] && dvc[1] in collections.devices[dvc[0]]) ? true : false;
 
-    if (isDevices) {
-      let devicesNoAccess = Object.assign({}, devices)
-      delete devicesNoAccess.access
-      return devicesNoAccess
+    if (isPorts) {
+      return collections.ports
+    } else if (isDevices) {
+      return collections.devices
     } else if (isAccess) {
-      return devices.access
+      return collections.access
     } else if(isNotFound){
       if(notFound){
-        return devices['notfound']
+        return collections.notfound
       } else {
         return false
       }
@@ -167,31 +178,36 @@ function midiPorts(midi, source) {
             inputType = (isIO && property.includes('input')) ? 'inputs' : 'outputs',
             suffix = (isIO && !isMIDI) ? 'ID' : '';
         
-        if (isMIDI && !!devices.access[property]) {
-          prop = devices.access[property]
+        if (isMIDI && !!collections.access[property]) {
+          prop = collections.access[property]
         } else if (isDevicePort && inDevicesPort) { // device:port
           if (isIO) {
-            prop = devices.access[inputType].get(devices[dvc[0]][dvc[1]][property + suffix])
+            prop = collections.access[inputType].get(collections.devices[dvc[0]][dvc[1]][property + suffix])
           } else {
-            prop = devices[dvc[0]][dvc[1]][property]
+            prop = collections.devices[dvc[0]][dvc[1]][property]
           }
         } else if (!isDevicePort && inDevices) { // 'port'
           if (isIO) {
-            if (!!devices[dvc][dvc]) { // device:device exists
-              prop = devices.access[inputType].get(devices[dvc][dvc][property + suffix])
+            if (!!collections.devices[dvc] && !!collections.devices[dvc][dvc]) { // device:device exists
+              prop = collections.access[inputType].get(collections.devices[dvc][dvc][property + suffix])
+            } else if(!!collections.devices[dvc]){
+              prop = collections.access[inputType].get(collections.devices[dvc][property + suffix])
+            } else if(!!collections.ports[dvc]){
+              prop = collections.access[inputType].get(collections.ports[dvc][property + suffix])
             } else {
-              prop = devices.access[inputType].get(devices[dvc][property + suffix])
+              console.warn('port '+ device +' not found')
             }
           } else {
-            if (!!devices[dvc][dvc]) {
-              prop = devices[dvc][dvc][property]
+            if (!!collections.devices[dvc][dvc]) {
+              prop = collections.devices[dvc][dvc][property]
             } else {
-              prop = devices[dvc][property]
+              prop = collections.devices[dvc][property]
             }
           }
         } else {
           console.warn('port '+ device +' not found')
         }
+        
         return prop
       },
       /**
@@ -205,18 +221,18 @@ function midiPorts(midi, source) {
       * ports('k-board').get('quality'))
       */
       set: function set(property, value) {
-        if(isDevicePort && !!devices[dvc[0]][dvc[1]]){
-          devices[dvc[0]][dvc[1]][property] = value
+        if(isDevicePort && !!collections.devices[dvc[0]][dvc[1]]){
+          collections.devices[dvc[0]][dvc[1]][property] = value
         } else if(inDevices){
-          if(!!devices[device][device]){
-            devices[device][device][property] = value
+          if(!!collections.devices[device][device]){
+            collections.devices[device][device][property] = value
           } else {
-            devices[device][property] = value
+            collections.devices[device][property] = value
           }
         } else {
           console.warn('port '+ device +' not found')
         }
-				return this
+        return this
       }
     }
   }
