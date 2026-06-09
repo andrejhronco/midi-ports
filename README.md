@@ -1,219 +1,131 @@
-#midi-ports
+# midi-ports
 
-Wraps the MIDIAccess object and builds an object of midi devices with name, inputID, outputID, and manufacturer allowing a more semantic way of interacting with midi devices in the browser.
+Type-safe [Web MIDI](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API) helper. Wrap an `MIDIAccess` object and access input/output ports **by name** — with grouped devices, not-found tracking, custom metadata, and hot-plug events.
 
-For use with the Web MIDI API, check browser support here: http://caniuse.com/#feat=midi
+> Browser support: https://caniuse.com/midi
 
-##install
-```javascript
-npm install midi-ports --save
+## Install
+
+```bash
+npm install midi-ports
 ```
-##usage
-```javascript
-import midiPorts from 'midi-ports'
 
-let midi, ports;
+## Quick start
 
-navigator.requestmidiAccess({sysex: true}) // set to true if you need to send sysex messages
-	.then((midiAccess) => {
-		midi = midiAccess
-		ports = midiPorts(midi [,options])
-	})
+```ts
+import { requestMidiPorts } from 'midi-ports'
 
-//internally builds a ports object:
-ports('ports') 
-/* =>
-{
-	'k-mix-audio-control': {
-		name: 'K-Mix Audio Control',
-		inputID: '-543473823',
-		outputID: '586923498',
-		manufacturer: 'keith-mcmillen-instruments'
-	},
-	'k-mix-control-surface': {
-		name: 'K-Mix Control Surface',
-		inputID: '-543345892',
-		outputID: '654298746',
-		manufacturer: 'keith-mcmillen-instruments'
-	}
+const midi = await requestMidiPorts({ sysex: true })
+
+const port = midi.get('k-mix-control-surface')
+port?.input?.addEventListener('midimessage', (e) => console.log('data', e.data))
+port?.output?.send([176, 1, 64])
+```
+
+If you already have an `MIDIAccess` object, use `createMidiPorts(access, options)` instead.
+
+## Ports
+
+`midi.ports` is a `ReadonlyMap<string, Port>` of every connected port, keyed by a normalized name (lowercased, spaces → hyphens, commas removed). An input and an output that share a name are merged into one `Port`.
+
+```ts
+for (const port of midi.ports.values()) {
+  console.log(port.name, port.displayName, port.manufacturer)
 }
-*/
-```
-Which enables port access by name:
 
-```javascript
-// get an input and listen for messages
-let kmixInput = ports('k-mix-control-surface').get('input')
-kmixInput.onmidimessage = (e) => console.log('data', e.data)
-
-// or, get an output and send messages
-let kmixOutput = ports('k-mix-control-surface').get('output')
-kmixOutput.send([176, 1, 64])
+const port = midi.get('k-board')
+port?.input          // live MIDIInput | undefined
+port?.output         // live MIDIOutput | undefined
+port?.isConnected    // boolean
+port?.send([144, 60, 127])   // convenience → output.send; throws if no output
 ```
 
-##Grouped Devices
-If you want to group ports by device, you can pass in an object as the second param which allows you to get a device:port by name.
+## Grouped devices
 
-The grouped devices object should be formatted:
+Pass a `devices` config to group ports under named devices:
 
-```javascript
-let grouped = {
-	'device': {
-		'port-name': { }, // empty object which gets populated with name, inputID, outputID, and manufacturer
-		'other-info': 'this can be any info you want to reference'
-	}
-}
+```ts
+const midi = createMidiPorts(access, {
+  devices: {
+    'k-mix': {
+      ports: ['k-mix-audio-control', 'k-mix-control-surface'],
+      meta: { icon: 'k-mix.svg', manufacturer: 'Keith McMillen Instruments' },
+    },
+    'k-board': { ports: ['k-board'] },
+  },
+})
+
+midi.device('k-mix')?.get('k-mix-audio-control')?.output?.send([240, 126, 127, 6, 1, 247])
+midi.device('k-mix')?.meta.icon   // 'k-mix.svg'
 ```
 
-*Port names must be lowercase and hyphen-separated.
+## Not-found tracking
 
-```javascript
-let grouped = {
-	'k-mix': {
-		'k-mix-audio-control': { },
-		'k-mix-control-surface': { },
-		'icon': 'https://files.keithmcmillen.com/products/k-mix/icons/k-mix.svg',
-		'manufacturer': 'Keith McMillen Instruments'
-	},
-	'k-board':{
-		'k-board': { },
-		'icon': 'https://files.keithmcmillen.com/products/k-board/icons/k-board.svg',
-		'manufacturer': 'Keith McMillen Instruments'
-	}
-}
-//...
-let devices = midiPorts(midi, grouped)
-/*
-internally builds a devices.ports object:
+Any port named in a device config that isn't connected is listed in `midi.notFound`, so you can build fallback UI:
 
-devices('devices') => 
- {
-	'k-mix': {
-		'k-mix-audio-control': {
-			name: 'K-Mix Audio Control',
-			inputID: '-543473823',
-			outputID: '586923498',
-			manufacturer: 'keith-mcmillen-instruments'
-		},
-		'k-mix-control-surface': {
-			'name': 'K-Mix Control Surface',
-			inputID: '-543345892',
-			outputID: '654298746',
-			manufacturer: 'keith-mcmillen-instruments'
-		},
-		'icon': 'https://files.keithmcmillen.com/products/k-mix/icons/k-mix.svg',
-		'manufacturer': 'Keith McMillen Instruments'
-	},
-	'k-board':{
-		'k-board': {
-			name:'K-Board',
-			inputID:'1852960744',
-			outputID:'-162522465',
-			manufacturer:'kesumo-llc'
-		},
-		'icon': 'https://files.keithmcmillen.com/products/k-board/icons/k-board.svg',
-		'manufacturer': 'Keith McMillen Instruments'
-	}
-}
-*/
-```
-To access grouped devices, use the 'device:port-name' format 
-
-```javascript
-let kmixOutput = devices('k-mix:k-mix-audio-control').get('output')
-
-kmixOutput.send([240, 126, 127, 6, 1, 247])
-```
-If you want to group a device:port with only one port and its name is the same as the device, you can use a shorthand for getting that port.
-
-```javascript
-	// you can use either
-	devices('k-board:k-board').get('input') // => midiInput
-	
-	// or, the shorter
-	devices('k-board').get('input') // => midiInput
-```
-
-##Accessing midiAccess The Ports Object, and the Devices Object
-You can get direct access to the midiAccess object from within midi-ports, for example, to set a statechange handler, or loop over the 'ports' or 'devices' objects.
-
-If you're not passing in an grouped devices object, 'ports' and 'devices' reference the same object, otherwise, 'devices' is in the format of grouped devices, 'device.port-name'. 
-
-The 'ports' object is always available and includes *_ALL_* attached ports.
-
-```javascript
-let devices = midiPorts(midi, grouped)
-
-// get ports object, a la midi-ports v.1.x
-devices('ports') // => {'port-name': { ... }}
-
-// get device object, a la midi-ports v.1.x
-devices('devices') // => {'device': {'port-name': { ... }}}
-
-// get midiAccess object
-devices('access') // => midiAccess
-
-// get midiAccess inputs / outputs iterator
-// ** when getting inputs / outputs from the midi Access object you must use the 'midi' param
-devices('midi').get('inputs') // => midiInputMap
-
-// if using grouped devices object and a device isn't found ** see Error Handling below
-devices('notfound') // => array of notfound ports ['k-mix-audio-control','k-mix-control-surface']
-// otherwise returns false
-```
-
-##Setting / Getting data
-You can also set arbitrary port-specific data using the set method. Set and Get can be chained.
-
-```javascript
-let devices = midiPorts(midi)
-devices('k-board').set('quality', 'great!')
-
-// get custom data
-devices('k-board').get('quality') // => great!
-
-// chain set and get
-devices('k-board').set('price', '$99').set('review', 'awesome!').get('review') // => 'awesome!'
-```
-
-##Error Handling
-
-If you're passing in an 'grouped devices' object and that device is not connected/found, midi-ports will add a each not-found port to an internal list, allowing for easier error handling. Fallback ports can be setup by using the 'ports' object if desired. For example, you could loop over 'ports' and build a select menu to allow the user to choose an alternate port.
-
-In the case above, if 'k-mix' is not connected/found, querying 'notfound' will return a list like this:
-
-```javascript
-devices('notfound') // => ['k-mix-audio-control','k-mix-control-surface']
-
-devices('devices') 
-/* => {
-	'k-board': {
- 		'k-board': {
-   	 		name: "K-Board",
-    		inputID: "1852960744",
-    		outputID: "-162522465",
-    		manufacturer: "kesumo-llc"
-		}
-	}
-}
-*/
-devices('ports') 
-/* => {
-	'k-board': {
-		name: "K-Board",
-		inputID: "1852960744",
-		outputID: "-162522465",
-		manufacturer: "kesumo-llc"
-}
-*/
-```
-Which makes it easy to use alternative ports if your desired port isn't connected/found:
-
-```javascript
-if(!!ports('notfound')){
-	console.warn('device ' + ...devices('notfound') + ' not found')
-	
-	// use an alternate port from devices('ports')
-	// map devices('ports') keys to build select menu
+```ts
+if (midi.notFound.length) {
+  console.warn('missing ports:', midi.notFound)
+  // e.g. let the user pick an alternative from midi.ports
 }
 ```
+
+## Custom metadata
+
+Attach arbitrary data to a port or device. It survives disconnect/reconnect.
+
+```ts
+midi.get('k-board')?.set('quality', 'great').set('price', 99)
+midi.get('k-board')?.meta // { quality: 'great', price: 99 }
+```
+
+## Hot-plug events
+
+`midi.ports`, `midi.devices`, and `midi.notFound` stay live as devices are plugged and unplugged. Subscribe to react:
+
+```ts
+const off = midi.on('connect', ({ port }) => console.log('connected', port.name))
+midi.on('disconnect', ({ port }) => console.log('disconnected', port.name))
+midi.on('statechange', ({ type, port }) => console.log(type, port.name))
+
+off()            // unsubscribe a single handler
+midi.dispose()   // detach everything when you're done
+```
+
+Event semantics (the `type` on each event payload):
+
+- **`connect`** — fires once when a port name first appears. Because a MIDI device exposes its input and output as separate ports, a port may arrive input-only (or output-only); check `port.input` / `port.output` / `port.isConnected` rather than assuming both are present.
+- **`disconnect`** — fires once when a port name fully goes away.
+- **`change`** — delivered on the `statechange` channel only, when a still-present port gains or loses a half (e.g. an input-only port gains its output).
+
+The `connect` channel receives only `connect` events, the `disconnect` channel only `disconnect` events, and the `statechange` channel receives all three (`connect`, `disconnect`, and `change`).
+
+## API
+
+- `requestMidiPorts(options?)` → `Promise<MidiPorts>` — requests access, then wraps it. Throws `MidiUnsupportedError` if Web MIDI is unavailable.
+- `createMidiPorts(access, options?)` → `MidiPorts` — wraps an existing `MIDIAccess`.
+- `MidiPorts`: `access`, `ports`, `devices`, `notFound`, `get(name)`, `device(name)`, `on(event, handler)`, `off(event, handler)`, `dispose()`.
+- `Port`: `name`, `displayName`, `manufacturer`, `inputID?`, `outputID?`, `input?`, `output?`, `isConnected`, `meta`, `send(data, timestamp?)`, `set(key, value)`.
+- `Device`: `name`, `ports`, `meta`, `get(portName)`, `set(key, value)`.
+
+## Migrating from v2
+
+v3 is a full rewrite with a new, type-safe API. The old stringly-typed callable is gone.
+
+| v2 | v3 |
+| --- | --- |
+| `const ports = midiPorts(midi)` | `const midi = createMidiPorts(access)` |
+| `ports('ports')` | `midi.ports` (a `Map`) |
+| `ports('devices')` | `midi.devices` (a `Map`) |
+| `ports('access')` | `midi.access` |
+| `ports('notfound')` | `midi.notFound` (`string[]`, empty if none) |
+| `ports('k-board').get('input')` | `midi.get('k-board')?.input` |
+| `ports('k-board').get('output')` | `midi.get('k-board')?.output` |
+| `ports('k-mix:audio-control').get('output')` | `midi.device('k-mix')?.get('audio-control')?.output` |
+| `ports('k-board').set('q', 'great').get('q')` | `midi.get('k-board')?.set('q', 'great').meta.q` |
+| second-arg grouped object with empty `{}` port keys | `devices` config: `{ name: { ports: [...], meta: {} } }` |
+| `midi.onstatechange = ...` (manual) | `midi.on('connect' \| 'disconnect' \| 'statechange', handler)` |
+
+## License
+
+MIT
