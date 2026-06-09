@@ -6,7 +6,7 @@
 
 **Architecture:** A factory (`createMidiPorts` / `requestMidiPorts`) wraps an `MIDIAccess` and returns a plain typed `MidiPorts` object. Internally it builds a name-keyed `Map<string, Port>` from the access object's inputs/outputs (merging input+output by normalized name), optionally groups them into `Device`s from a config, and listens for `statechange` to keep everything live while emitting connect/disconnect events. Each `Port` is a small handle with live `.input`/`.output` getters resolved against `MIDIAccess`, a `send` convenience, and a metadata bag that survives reconnects via an internal per-name store.
 
-**Tech Stack:** TypeScript (strict, ESM), `@types/webmidi`, tsup (build), Vitest (test), Biome (lint+format), Changesets (release), GitHub Actions (CI), pnpm.
+**Tech Stack:** TypeScript (strict, ESM; Web MIDI types come from the built-in DOM lib — no `@types/webmidi`), tsup (build), Vitest (test), Biome (lint+format), Changesets (release), GitHub Actions (CI), pnpm.
 
 **Reference spec:** `docs/superpowers/specs/2026-06-09-midi-ports-v3-redesign-design.md`
 
@@ -112,7 +112,6 @@ Create `package.json` with this exact content:
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["webmidi"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "isolatedModules": true,
@@ -194,10 +193,12 @@ Run:
 cd ~/code/midi-ports
 corepack enable
 corepack prepare pnpm@9.15.0 --activate
-pnpm add -D typescript@5 tsup@8 vitest@4 @vitest/coverage-v8@4 @biomejs/biome@2 @types/webmidi@3 @changesets/cli@2
+pnpm add -D typescript@5 tsup@8 vitest@4 @vitest/coverage-v8@4 @biomejs/biome@2 @changesets/cli@2
 ```
 
 Expected: a `pnpm-lock.yaml` is created and `node_modules` populated. `pnpm` reports the packages added to `devDependencies`.
+
+> Note: do **not** install `@types/webmidi` — it is a deprecated empty stub and TypeScript's built-in DOM lib already provides `MIDIAccess`, `MIDIInput`, `MIDIOutput`, `MIDIConnectionEvent`, etc.
 
 - [ ] **Step 9: Verify the toolchain runs (empty state)**
 
@@ -230,7 +231,7 @@ The mock fakes `MIDIAccess` with `inputs`/`outputs` maps and lets tests fire `st
 ```ts
 /**
  * Minimal fakes for the Web MIDI API, sufficient for testing midi-ports.
- * Web MIDI global types (MIDIAccess, MIDIInput, ...) come from @types/webmidi.
+ * Web MIDI global types (MIDIAccess, MIDIInput, ...) come from the TS DOM lib.
  */
 
 export interface PortSpec {
@@ -351,7 +352,7 @@ Run:
 pnpm exec tsc --noEmit
 ```
 
-Expected: exits 0. (If `MIDIPortConnectionState` / `MIDIPortDeviceState` names error, they are provided by `@types/webmidi`; confirm `"types": ["webmidi"]` is in tsconfig.)
+Expected: exits 0. (`MIDIPortConnectionState` / `MIDIPortDeviceState` / `MIDIAccess` etc. are provided by the built-in DOM lib via `"lib": ["ES2022", "DOM", "DOM.Iterable"]`.)
 
 - [ ] **Step 3: Commit**
 
