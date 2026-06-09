@@ -49,4 +49,15 @@ describe('buildDevices', () => {
 
     expect(second.devices.get('k-board')?.meta).toEqual({ label: 'mine' })
   })
+
+  it('does not duplicate a missing port name shared by multiple devices', () => {
+    const shared: DevicesConfig = {
+      'dev-a': { ports: ['shared-port'] },
+      'dev-b': { ports: ['shared-port'] },
+    }
+    const midi = createMockMidi()
+    const ports = buildPorts(midi.access, new Map())
+    const { notFound } = buildDevices(shared, ports, new Map())
+    expect(notFound).toEqual(['shared-port'])
+  })
 })

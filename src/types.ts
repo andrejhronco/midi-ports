@@ -60,7 +60,15 @@ export type MidiPortEventType = 'connect' | 'disconnect' | 'statechange'
 
 /** Payload delivered to event subscribers. */
 export interface MidiPortEvent {
-  type: 'connect' | 'disconnect'
+  /**
+   * What happened to the affected port:
+   * - 'connect': the port newly appeared
+   * - 'disconnect': the port fully went away
+   * - 'change': the port is still present but its input/output set changed
+   *   (e.g. an input-only port gained an output). Only delivered on the
+   *   'statechange' channel.
+   */
+  type: 'connect' | 'disconnect' | 'change'
   /** The affected Port handle. */
   port: Port
   /** The raw browser connection event. */

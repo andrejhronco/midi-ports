@@ -3,11 +3,14 @@ import { buildPorts } from './build-ports.js'
 import { MidiUnsupportedError } from './errors.js'
 import { createEmitter } from './events.js'
 import { normalize } from './normalize.js'
-import type { Device, MidiPorts, MidiPortsOptions, Port } from './types.js'
+import type { Device, MidiPortEvent, MidiPorts, MidiPortsOptions, Port } from './types.js'
 
 /** Wraps an existing MIDIAccess object. */
 export function createMidiPorts(access: MIDIAccess, options: MidiPortsOptions = {}): MidiPorts {
   const config = options.devices ?? {}
+  // Metadata is keyed by normalized name and intentionally retained across
+  // disconnects so it survives reconnects. The key space is bounded by the
+  // device names the user actually owns, so this does not grow without bound.
   const metaStore = new Map<string, Record<string, unknown>>()
   const deviceMetaStore = new Map<string, Record<string, unknown>>()
   const emitter = createEmitter()
@@ -36,21 +39,22 @@ export function createMidiPorts(access: MIDIAccess, options: MidiPortsOptions = 
     rebuild()
     const current = ports.get(name)
 
-    if (!previous && current) {
-      emitter.emit('connect', { type: 'connect', port: current, raw })
-    } else if (previous && !current) {
-      emitter.emit('disconnect', { type: 'disconnect', port: previous, raw })
-    }
+    // Derive the event from the port's presence transition, not from the
+    // single changed half's state — a merged input+output port can gain or
+    // lose one half while remaining present.
+    let type: 'connect' | 'disconnect' | 'change'
+    if (!previous && current) type = 'connect'
+    else if (previous && !current) type = 'disconnect'
+    else if (current) type = 'change'
+    else return // absent -> absent: nothing meaningful happened
 
-    const isConnected = changed.state === 'connected'
     const port = current ?? previous
-    if (port) {
-      emitter.emit('statechange', {
-        type: isConnected ? 'connect' : 'disconnect',
-        port,
-        raw,
-      })
-    }
+    if (!port) return
+    const event: MidiPortEvent = { type, port, raw }
+
+    if (type === 'connect') emitter.emit('connect', event)
+    else if (type === 'disconnect') emitter.emit('disconnect', event)
+    emitter.emit('statechange', event)
   }
 
   access.addEventListener('statechange', handleStateChange)

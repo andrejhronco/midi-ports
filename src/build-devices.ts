@@ -18,7 +18,9 @@ export function buildDevices(
   deviceMetaStore: Map<string, Record<string, unknown>>,
 ): BuiltDevices {
   const devices = new Map<string, Device>()
-  const notFound: string[] = []
+  // A port name expected by multiple devices should appear once; a Set both
+  // dedupes and preserves first-seen order.
+  const notFound = new Set<string>()
 
   for (const [deviceName, deviceConfig] of Object.entries(config)) {
     let meta = deviceMetaStore.get(deviceName)
@@ -31,11 +33,11 @@ export function buildDevices(
     for (const portName of deviceConfig.ports) {
       const port = ports.get(portName)
       if (port) memberPorts.set(portName, port)
-      else notFound.push(portName)
+      else notFound.add(portName)
     }
 
     devices.set(deviceName, createDevice({ name: deviceName, ports: memberPorts, meta }))
   }
 
-  return { devices, notFound }
+  return { devices, notFound: [...notFound] }
 }

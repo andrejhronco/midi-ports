@@ -77,6 +77,57 @@ describe('createMidiPorts', () => {
 
     expect(onState).not.toHaveBeenCalled()
   })
+
+  it('emits connect once for a dual input+output port and change when the second half attaches', () => {
+    const midi = createMockMidi()
+    const mp = createMidiPorts(midi.access)
+    const onConnect = vi.fn()
+    const onState = vi.fn()
+    mp.on('connect', onConnect)
+    mp.on('statechange', onState)
+
+    midi.connect({ id: 'in-1', name: 'K-Board', type: 'input' })
+    midi.connect({ id: 'out-1', name: 'K-Board', type: 'output' })
+
+    const port = mp.get('k-board')
+    expect(port?.inputID).toBe('in-1')
+    expect(port?.outputID).toBe('out-1')
+    expect(onConnect).toHaveBeenCalledTimes(1)
+    expect(onState).toHaveBeenCalledTimes(2)
+    expect(onState.mock.calls[1]![0]!.type).toBe('change')
+  })
+
+  it('treats removing one half of a merged port as a change, not a disconnect', () => {
+    const midi = createMockMidi([
+      { id: 'in-1', name: 'K-Board', type: 'input' },
+      { id: 'out-1', name: 'K-Board', type: 'output' },
+    ])
+    const mp = createMidiPorts(midi.access)
+    const onDisconnect = vi.fn()
+    const onState = vi.fn()
+    mp.on('disconnect', onDisconnect)
+    mp.on('statechange', onState)
+
+    midi.disconnect({ id: 'out-1', name: 'K-Board', type: 'output' })
+
+    const port = mp.get('k-board')
+    expect(port?.inputID).toBe('in-1')
+    expect(port?.outputID).toBeUndefined()
+    expect(port?.isConnected).toBe(true)
+    expect(onDisconnect).not.toHaveBeenCalled()
+    expect(onState).toHaveBeenCalledTimes(1)
+    expect(onState.mock.calls[0]![0]!.type).toBe('change')
+  })
+
+  it('off() removes a handler at the MidiPorts level', () => {
+    const midi = createMockMidi([{ id: 'in-1', name: 'K-Board', type: 'input' }])
+    const mp = createMidiPorts(midi.access)
+    const onState = vi.fn()
+    mp.on('statechange', onState)
+    mp.off('statechange', onState)
+    midi.disconnect({ id: 'in-1', name: 'K-Board', type: 'input' })
+    expect(onState).not.toHaveBeenCalled()
+  })
 })
 
 describe('requestMidiPorts', () => {
