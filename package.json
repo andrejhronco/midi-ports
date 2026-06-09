@@ -1,24 +1,62 @@
 {
   "name": "midi-ports",
-  "version": "2.1.0",
-  "description": "Wraps the MIDIAccess object and builds an object of midi devices with name, inputID, outputID, and manufacturer allowing a more semantic way of interacting with midi devices in the browser.",
-  "main": "index.js",
-  "repository": {
-    "type": "git",
-    "url": "git://github.com/AndrejHronco/midi-ports.git"
+  "version": "3.0.0",
+  "description": "Type-safe Web MIDI helper: wrap MIDIAccess and access input/output ports by name, with grouped devices, not-found tracking, metadata, and hot-plug events.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
-  "homepage": "https://github.com/AndrejHronco/midi-ports",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@9.15.0",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
+    "release": "changeset publish"
   },
-  "author": "Andrej Hronco",
-  "license": "MIT",
   "keywords": [
     "webmidi",
-    "midiports",
+    "web-midi",
     "midi",
-    "ports"
+    "midiports",
+    "ports",
+    "midiaccess",
+    "typescript"
   ],
-  "devDependencies": {},
-  "dependencies": {}
+  "author": "Andrej Hronco",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andrejhronco/midi-ports.git"
+  },
+  "homepage": "https://github.com/andrejhronco/midi-ports#readme",
+  "bugs": {
+    "url": "https://github.com/andrejhronco/midi-ports/issues"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2",
+    "@changesets/cli": "2",
+    "@vitest/coverage-v8": "4",
+    "tsup": "8",
+    "typescript": "5",
+    "vitest": "4"
+  }
 }

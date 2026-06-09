@@ -1,2 +1,6 @@
-.tmp
-npm-debug.log
+node_modules
+dist
+coverage
+*.log
+.DS_Store
+docs/superpowers
