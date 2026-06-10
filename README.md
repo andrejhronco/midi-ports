@@ -24,6 +24,8 @@ port?.input?.addEventListener('midimessage', (e) => console.log('data', e.data))
 port?.output?.send([176, 1, 64])
 ```
 
+`port.input` and `port.output` are the live Web MIDI objects. The `midimessage` event above gives you raw bytes; for parsed `noteon`/`controlchange`/etc. events and helpers like `playNote()`, hand them to [webmidi.js](#using-with-webmidijs) — midi-ports stays focused on *which* port, not *what* it's saying.
+
 If you already have an `MIDIAccess` object, use `createMidiPorts(access, options)` instead.
 
 ## Ports
