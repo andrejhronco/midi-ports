@@ -12,6 +12,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      id-token: write # OIDC: authenticate to npm via Trusted Publisher (no token)
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -21,8 +22,9 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
+      # OIDC trusted publishing requires npm >= 11.5.1 (newer than Node 20 ships)
+      - run: npm install -g npm@latest
       - run: pnpm run build
       - uses: changesets/action@v1
         with:
@@ -30,7 +32,3 @@ jobs:
           version: pnpm exec changeset version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # setup-node's registry-url writes an .npmrc that reads NODE_AUTH_TOKEN;
-          # NPM_TOKEN alone leaves it empty and publishes anonymously (E404).
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
