@@ -147,7 +147,7 @@ Rule of thumb: reach for **midi-ports** to decide *what* you're talking to, and 
 
 ## Demo
 
-A runnable demo lives in [`demo/index.html`](demo/index.html): midi-ports lists connected ports and tracks hot-plug, while [webmidi.js](https://webmidijs.org/) (loaded from a CDN) plays a note and parses incoming messages — the [Using with webmidi.js](#using-with-webmidijs) split, live. Build the library first, then serve the repo root:
+A runnable demo lives in [`demo/index.html`](demo/index.html): midi-ports lists connected ports and tracks hot-plug, and a toggle switches the messaging layer between **native Web MIDI** (`port.send()` / raw `midimessage` bytes) and **[webmidi.js](https://webmidijs.org/)** (`playNote()` / parsed events) so you can compare them live. Build the library first, then serve the repo root:
 
 ```bash
 pnpm run build

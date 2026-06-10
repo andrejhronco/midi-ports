@@ -3,13 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>midi-ports + webmidi.js demo</title>
+    <title>midi-ports demo — native &amp; webmidi.js messaging</title>
     <style>
       body { font: 14px/1.5 system-ui, sans-serif; margin: 2rem; max-width: 720px; }
       h1 { font-size: 1.2rem; }
       .sub { color: #666; margin-top: -0.5rem; }
       .sub b { color: #333; }
       button { font: inherit; padding: 0.3rem 0.7rem; cursor: pointer; }
+      label { margin-right: 0.8rem; }
+      #modeRow { color: #444; }
       .port { border: 1px solid #ddd; border-radius: 6px; padding: 0.6rem 0.8rem; margin: 0.5rem 0; }
       .port small { color: #666; }
       .tag { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: #eee; margin-left: 4px; }
@@ -18,9 +20,14 @@
     </style>
   </head>
   <body>
-    <h1>midi-ports + webmidi.js demo</h1>
-    <p class="sub"><b>midi-ports</b> resolves the device topology · <b>webmidi.js</b> sends &amp; parses messages</p>
+    <h1>midi-ports demo</h1>
+    <p class="sub"><b>midi-ports</b> resolves the device topology · messaging via <b>native Web MIDI</b> or <b>webmidi.js</b></p>
     <p><button id="start">Request MIDI access</button> <span id="status">idle</span></p>
+    <p id="modeRow" hidden>
+      Messaging layer:
+      <label><input type="radio" name="mode" value="native" /> native Web MIDI (raw bytes)</label>
+      <label><input type="radio" name="mode" value="webmidi" checked /> webmidi.js (parsed)</label>
+    </p>
     <div id="ports"></div>
     <h2 style="font-size: 1rem">Event log</h2>
     <div id="log"></div>
@@ -40,6 +47,7 @@
       }
 
       let midi // midi-ports instance (topology)
+      let mode = 'webmidi' // messaging layer: 'native' | 'webmidi'
 
       function render() {
         const container = $('ports')
@@ -59,7 +67,7 @@
           if (port.output) {
             const rawName = port.displayName
             const btn = document.createElement('button')
-            btn.textContent = 'Play C4 (webmidi.js)'
+            btn.textContent = `Play C4 (${mode === 'native' ? 'native' : 'webmidi.js'})`
             btn.style.marginTop = '0.5rem'
             btn.onclick = () => {
               // Re-resolve the live port by its raw OS name. midi.get()
@@ -70,9 +78,16 @@
                 log(`✗ ${rawName} has no output right now`)
                 return
               }
-              // Bridge midi-ports → webmidi.js by the same raw name.
-              WebMidi.getOutputByName(rawName)?.playNote('C4', { channels: 1, duration: 300 })
-              log(`→ played C4 on ${rawName} (resolved via midi.get('${rawName}'))`)
+              if (mode === 'native') {
+                // No extra library: send raw MIDI bytes via the Port's output.
+                live.send([0x90, 60, 100]) // note on, ch1, C4 (60), vel 100
+                setTimeout(() => live.send([0x80, 60, 0]), 300) // note off
+                log(`→ played C4 on ${rawName} via native port.send()`)
+              } else {
+                // webmidi.js helpers, bridged by the same raw name.
+                WebMidi.getOutputByName(rawName)?.playNote('C4', { channels: 1, duration: 300 })
+                log(`→ played C4 on ${rawName} via webmidi.js`)
+              }
             }
             div.appendChild(document.createElement('br'))
             div.appendChild(btn)
@@ -81,20 +96,46 @@
         }
       }
 
-      // Let webmidi.js parse incoming messages on every input midi-ports found.
+      // Detach listeners from both channels so switching modes (or re-running on
+      // hot-plug) never double-logs.
+      function clearInputListeners() {
+        for (const port of midi.ports.values()) {
+          if (port.input) port.input.onmidimessage = null
+          WebMidi.getInputByName(port.displayName)?.removeListener()
+        }
+      }
+
       function listenToInputs() {
+        clearInputListeners()
         for (const port of midi.ports.values()) {
           if (!port.input) continue
-          const input = WebMidi.getInputByName(port.displayName)
-          if (!input) continue
-          input.removeListener() // clear before re-attaching to avoid duplicates
-          input.addListener('noteon', (e) =>
-            log(`♪ ${port.displayName}: noteon ${e.note.identifier} (vel ${e.note.rawAttack})`),
-          )
-          input.addListener('noteoff', (e) => log(`♪ ${port.displayName}: noteoff ${e.note.identifier}`))
-          input.addListener('controlchange', (e) =>
-            log(`🎛 ${port.displayName}: CC ${e.controller.number} = ${e.rawValue}`),
-          )
+          if (mode === 'native') {
+            // Native Web MIDI: midi-ports hands you the live MIDIInput; you get
+            // raw bytes and decode them yourself.
+            port.input.onmidimessage = (e) =>
+              log(`← ${port.displayName}: [${Array.from(e.data).join(', ')}] (native)`)
+          } else {
+            // webmidi.js: parsed, friendly events.
+            const input = WebMidi.getInputByName(port.displayName)
+            if (!input) continue
+            input.addListener('noteon', (e) =>
+              log(`♪ ${port.displayName}: noteon ${e.note.identifier} (vel ${e.note.rawAttack})`),
+            )
+            input.addListener('noteoff', (e) => log(`♪ ${port.displayName}: noteoff ${e.note.identifier}`))
+            input.addListener('controlchange', (e) =>
+              log(`🎛 ${port.displayName}: CC ${e.controller.number} = ${e.rawValue}`),
+            )
+          }
+        }
+      }
+
+      // Switch messaging layer live.
+      for (const radio of document.querySelectorAll('input[name="mode"]')) {
+        radio.onchange = (e) => {
+          mode = e.target.value
+          log(`— messaging layer: ${mode === 'native' ? 'native Web MIDI' : 'webmidi.js'}`)
+          render() // relabel the play buttons
+          listenToInputs() // re-attach on the chosen layer
         }
       }
 
@@ -105,6 +146,7 @@
           await WebMidi.enable({ sysex: false })
           midi = await requestMidiPorts({ sysex: false })
           $('status').textContent = 'connected'
+          $('modeRow').hidden = false
           log(`access granted — ${midi.ports.size} port(s)`)
           render()
           listenToInputs()
