@@ -37,8 +37,8 @@ describe('createMidiPorts', () => {
     expect(mp.get('k-mix-control-surface')?.inputID).toBe('in-2')
     expect(mp.notFound).toEqual([])
     expect(onConnect).toHaveBeenCalledTimes(1)
-    expect(onConnect.mock.calls[0]![0]!.type).toBe('connect')
-    expect(onConnect.mock.calls[0]![0]!.port.name).toBe('k-mix-control-surface')
+    expect(onConnect.mock.calls[0]?.[0]?.type).toBe('connect')
+    expect(onConnect.mock.calls[0]?.[0]?.port.name).toBe('k-mix-control-surface')
     expect(onState).toHaveBeenCalledTimes(1)
   })
 
@@ -52,7 +52,7 @@ describe('createMidiPorts', () => {
 
     expect(mp.get('k-board')).toBeUndefined()
     expect(onDisconnect).toHaveBeenCalledTimes(1)
-    expect(onDisconnect.mock.calls[0]![0]!.port.name).toBe('k-board')
+    expect(onDisconnect.mock.calls[0]?.[0]?.port.name).toBe('k-board')
   })
 
   it('preserves custom metadata across a disconnect/reconnect', () => {
@@ -94,7 +94,7 @@ describe('createMidiPorts', () => {
     expect(port?.outputID).toBe('out-1')
     expect(onConnect).toHaveBeenCalledTimes(1)
     expect(onState).toHaveBeenCalledTimes(2)
-    expect(onState.mock.calls[1]![0]!.type).toBe('change')
+    expect(onState.mock.calls[1]?.[0]?.type).toBe('change')
   })
 
   it('treats removing one half of a merged port as a change, not a disconnect', () => {
@@ -116,7 +116,7 @@ describe('createMidiPorts', () => {
     expect(port?.isConnected).toBe(true)
     expect(onDisconnect).not.toHaveBeenCalled()
     expect(onState).toHaveBeenCalledTimes(1)
-    expect(onState.mock.calls[0]![0]!.type).toBe('change')
+    expect(onState.mock.calls[0]?.[0]?.type).toBe('change')
   })
 
   it('off() removes a handler at the MidiPorts level', () => {
