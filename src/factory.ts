@@ -20,7 +20,7 @@ export function createMidiPorts(access: MIDIAccess, options: MidiPortsOptions = 
   const emitter = createEmitter()
   const resolve = createResolver({ normalize: options.normalize, aliases: options.aliases })
 
-  const roleAssignments = new Map<string, string>() // role -> canonical port name (used by roles task)
+  const roleAssignments = new Map<string, string>() // role -> canonical port name
   const persist = options.persist ? createPersistController(options.persist) : undefined
 
   const objectEntries = (val: unknown): [string, unknown][] =>
