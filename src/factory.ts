@@ -2,6 +2,7 @@ import { buildDevices } from './build-devices.js'
 import { buildPorts } from './build-ports.js'
 import { MidiUnsupportedError } from './errors.js'
 import { createEmitter } from './events.js'
+import { createPersistController } from './persistence.js'
 import { createResolver } from './resolve.js'
 import type { Device, MidiPortEvent, MidiPorts, MidiPortsOptions, Port } from './types.js'
 import { waitForPort } from './wait.js'
@@ -17,19 +18,38 @@ export function createMidiPorts(access: MIDIAccess, options: MidiPortsOptions = 
   const emitter = createEmitter()
   const resolve = createResolver({ normalize: options.normalize, aliases: options.aliases })
 
-  // onChange (write-through persistence) is wired in a later task; omitted here.
-  let ports: Map<string, Port> = buildPorts(access, metaStore, resolve)
+  const roleAssignments = new Map<string, string>() // role -> canonical port name (used by roles task)
+  const persist = options.persist ? createPersistController(options.persist) : undefined
+
+  if (persist) {
+    const doc = persist.load()
+    for (const [k, v] of Object.entries(doc.ports ?? {})) metaStore.set(k, { ...v })
+    for (const [k, v] of Object.entries(doc.devices ?? {})) deviceMetaStore.set(k, { ...v })
+    for (const [k, v] of Object.entries(doc.roles ?? {})) roleAssignments.set(k, v)
+  }
+
+  const mapToObj = <V>(m: Map<string, V>): Record<string, V> => Object.fromEntries(m.entries())
+  const scheduleSave = (): void => {
+    persist?.save({
+      ports: mapToObj(metaStore),
+      devices: mapToObj(deviceMetaStore),
+      roles: mapToObj(roleAssignments),
+    })
+  }
+
+  // scheduleSave is passed as onChange so metadata writes are persisted automatically.
+  let ports: Map<string, Port> = buildPorts(access, metaStore, resolve, scheduleSave)
   let devices: Map<string, Device>
   let notFound: string[]
 
   const rebuild = (): void => {
-    ports = buildPorts(access, metaStore, resolve)
-    const built = buildDevices(config, ports, deviceMetaStore, resolve)
+    ports = buildPorts(access, metaStore, resolve, scheduleSave)
+    const built = buildDevices(config, ports, deviceMetaStore, resolve, scheduleSave)
     devices = built.devices
     notFound = built.notFound
   }
 
-  const initial = buildDevices(config, ports, deviceMetaStore, resolve)
+  const initial = buildDevices(config, ports, deviceMetaStore, resolve, scheduleSave)
   devices = initial.devices
   notFound = initial.notFound
 

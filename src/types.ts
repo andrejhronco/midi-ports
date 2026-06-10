@@ -1,5 +1,7 @@
+import type { PersistOptions } from './persistence.js'
 import type { WaitOptions } from './wait.js'
 
+export type { PersistOptions, StorageAdapter } from './persistence.js'
 export type { WaitOptions } from './wait.js'
 
 /** Options accepted by createMidiPorts / requestMidiPorts. */
@@ -14,6 +16,8 @@ export interface MidiPortsOptions {
   aliases?: Record<string, string[]>
   /** Replace the built-in name normalization. */
   normalize?: (raw: string) => string
+  /** Opt-in persistence of metadata and role assignments. */
+  persist?: PersistOptions
 }
 
 /** Configuration describing how to group ports into named devices. */

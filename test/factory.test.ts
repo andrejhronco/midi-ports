@@ -178,6 +178,40 @@ describe('createMidiPorts', () => {
     expect(mp.device('kb')?.get('k-board')?.inputID).toBe('in-1')
     expect(mp.device('kb')?.get('K-Board')?.inputID).toBe('in-1')
   })
+
+  it('hydrates port metadata from persistence before first build', () => {
+    const store = new Map<string, string>([
+      ['app:midi', JSON.stringify({ ports: { 'k-board': { color: 'red' } } })],
+    ])
+    const storage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    }
+    const midi = createMockMidi([{ id: 'in-1', name: 'K-Board', type: 'input' }])
+    const mp = createMidiPorts(midi.access, { persist: { key: 'app:midi', storage } })
+    expect(mp.get('k-board')?.meta).toEqual({ color: 'red' })
+  })
+
+  it('writes metadata through to persistence on set()', async () => {
+    const store = new Map<string, string>()
+    const storage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    }
+    const midi = createMockMidi([{ id: 'in-1', name: 'K-Board', type: 'input' }])
+    const mp = createMidiPorts(midi.access, { persist: { key: 'app:midi', storage } })
+    mp.get('k-board')?.set('color', 'green')
+    await Promise.resolve()
+    expect(
+      (
+        JSON.parse(store.get('app:midi') as string) as {
+          ports: Record<string, Record<string, unknown>>
+        }
+      ).ports['k-board'],
+    ).toEqual({ color: 'green' })
+  })
 })
 
 describe('requestMidiPorts', () => {
