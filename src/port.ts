@@ -9,10 +9,12 @@ export interface CreatePortParams {
   access: MIDIAccess
   /** Shared metadata record (owned by the factory's per-name store). */
   meta: Record<string, unknown>
+  /** Called after metadata mutates, for write-through persistence. */
+  onChange?: () => void
 }
 
 export function createPort(params: CreatePortParams): Port {
-  const { name, displayName, manufacturer, inputID, outputID, access, meta } = params
+  const { name, displayName, manufacturer, inputID, outputID, access, meta, onChange } = params
 
   const port: Port = {
     name,
@@ -42,6 +44,7 @@ export function createPort(params: CreatePortParams): Port {
     },
     set(key, value) {
       meta[key] = value
+      onChange?.()
       return this
     },
   }

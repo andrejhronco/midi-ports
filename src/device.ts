@@ -1,15 +1,16 @@
-import { normalize } from './normalize.js'
+import type { Normalizer } from './resolve.js'
 import type { Device, Port } from './types.js'
 
 export interface CreateDeviceParams {
   name: string
   ports: Map<string, Port>
-  /** Shared metadata record (owned by the factory's per-device store). */
   meta: Record<string, unknown>
+  resolve: Normalizer
+  onChange?: () => void
 }
 
 export function createDevice(params: CreateDeviceParams): Device {
-  const { name, ports, meta } = params
+  const { name, ports, meta, resolve, onChange } = params
 
   const device: Device = {
     name,
@@ -18,10 +19,11 @@ export function createDevice(params: CreateDeviceParams): Device {
       return meta
     },
     get(portName) {
-      return ports.get(normalize(portName))
+      return ports.get(resolve(portName))
     },
     set(key, value) {
       meta[key] = value
+      onChange?.()
       return this
     },
   }

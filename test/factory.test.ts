@@ -144,6 +144,33 @@ describe('createMidiPorts', () => {
     midi.disconnect({ id: 'in-1', name: 'K-Board', type: 'input' })
     expect(onState).not.toHaveBeenCalled()
   })
+
+  it('merges Windows MIDIIN/MIDIOUT halves into one canonical port', () => {
+    const midi = createMockMidi([
+      { id: 'in-1', name: 'MIDIIN2 (Launchkey)', type: 'input' },
+      { id: 'out-1', name: 'MIDIOUT2 (Launchkey)', type: 'output' },
+    ])
+    const mp = createMidiPorts(midi.access)
+    expect(mp.ports.size).toBe(1)
+    expect(mp.get('launchkey')?.inputID).toBe('in-1')
+    expect(mp.get('launchkey')?.outputID).toBe('out-1')
+  })
+
+  it('resolves aliases for get() and device membership', () => {
+    const midi = createMockMidi([{ id: 'in-1', name: 'K-Mix Audio', type: 'input' }])
+    const mp = createMidiPorts(midi.access, {
+      aliases: { 'k-mix': ['K-Mix Audio'] },
+      devices: { 'k-mix-dev': { ports: ['k-mix'] } },
+    })
+    expect(mp.get('k-mix')?.inputID).toBe('in-1')
+    expect(mp.device('k-mix-dev')?.get('k-mix')?.inputID).toBe('in-1')
+  })
+
+  it('honors a custom normalize override', () => {
+    const midi = createMockMidi([{ id: 'in-1', name: 'Funky Name', type: 'input' }])
+    const mp = createMidiPorts(midi.access, { normalize: (raw) => raw.toUpperCase() })
+    expect(mp.get('FUNKY NAME')?.inputID).toBe('in-1')
+  })
 })
 
 describe('requestMidiPorts', () => {

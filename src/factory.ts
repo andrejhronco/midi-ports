@@ -2,7 +2,7 @@ import { buildDevices } from './build-devices.js'
 import { buildPorts } from './build-ports.js'
 import { MidiUnsupportedError } from './errors.js'
 import { createEmitter } from './events.js'
-import { normalize } from './normalize.js'
+import { createResolver } from './resolve.js'
 import type { Device, MidiPortEvent, MidiPorts, MidiPortsOptions, Port } from './types.js'
 
 /** Wraps an existing MIDIAccess object. */
@@ -14,26 +14,27 @@ export function createMidiPorts(access: MIDIAccess, options: MidiPortsOptions = 
   const metaStore = new Map<string, Record<string, unknown>>()
   const deviceMetaStore = new Map<string, Record<string, unknown>>()
   const emitter = createEmitter()
+  const resolve = createResolver({ normalize: options.normalize, aliases: options.aliases })
 
-  let ports: Map<string, Port> = buildPorts(access, metaStore)
+  let ports: Map<string, Port> = buildPorts(access, metaStore, resolve)
   let devices: Map<string, Device>
   let notFound: string[]
 
   const rebuild = (): void => {
-    ports = buildPorts(access, metaStore)
-    const built = buildDevices(config, ports, deviceMetaStore)
+    ports = buildPorts(access, metaStore, resolve)
+    const built = buildDevices(config, ports, deviceMetaStore, resolve)
     devices = built.devices
     notFound = built.notFound
   }
 
-  const initial = buildDevices(config, ports, deviceMetaStore)
+  const initial = buildDevices(config, ports, deviceMetaStore, resolve)
   devices = initial.devices
   notFound = initial.notFound
 
   const handleStateChange = (raw: MIDIConnectionEvent): void => {
     const changed = raw.port
     if (!changed) return
-    const name = normalize(changed.name ?? '')
+    const name = resolve(changed.name ?? '')
 
     const previous = ports.get(name)
     rebuild()
@@ -71,7 +72,7 @@ export function createMidiPorts(access: MIDIAccess, options: MidiPortsOptions = 
       return notFound
     },
     get(name) {
-      return ports.get(normalize(name))
+      return ports.get(resolve(name))
     },
     device(name) {
       return devices.get(name)

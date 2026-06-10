@@ -1,5 +1,6 @@
 import { normalize } from './normalize.js'
 import { createPort } from './port.js'
+import type { Normalizer } from './resolve.js'
 import type { Port } from './types.js'
 
 interface Accumulated {
@@ -18,11 +19,13 @@ interface Accumulated {
 export function buildPorts(
   access: MIDIAccess,
   metaStore: Map<string, Record<string, unknown>>,
+  resolve: Normalizer,
+  onChange?: () => void,
 ): Map<string, Port> {
   const accumulated = new Map<string, Accumulated>()
 
   const collect = (device: MIDIInput | MIDIOutput, kind: 'input' | 'output'): void => {
-    const name = normalize(device.name ?? '')
+    const name = resolve(device.name ?? '')
     const entry: Accumulated = accumulated.get(name) ?? {
       displayName: device.name ?? '',
       manufacturer: normalize(device.manufacturer ?? ''),
@@ -49,6 +52,7 @@ export function buildPorts(
         outputID: entry.outputID,
         access,
         meta,
+        onChange,
       }),
     )
   }

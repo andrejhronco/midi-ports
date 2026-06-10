@@ -6,6 +6,10 @@ export interface MidiPortsOptions {
   software?: boolean
   /** Optional grouping of ports into named devices. */
   devices?: DevicesConfig
+  /** Map variant device names to a canonical key. */
+  aliases?: Record<string, string[]>
+  /** Replace the built-in name normalization. */
+  normalize?: (raw: string) => string
 }
 
 /** Configuration describing how to group ports into named devices. */
