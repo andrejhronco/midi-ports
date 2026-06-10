@@ -4,12 +4,14 @@ import { MidiUnsupportedError } from './errors.js'
 import { createEmitter } from './events.js'
 import { createPersistController } from './persistence.js'
 import { createResolver } from './resolve.js'
+import { resolveRole } from './roles.js'
 import type { Device, MidiPortEvent, MidiPorts, MidiPortsOptions, Port } from './types.js'
 import { waitForPort } from './wait.js'
 
 /** Wraps an existing MIDIAccess object. */
 export function createMidiPorts(access: MIDIAccess, options: MidiPortsOptions = {}): MidiPorts {
   const config = options.devices ?? {}
+  const roleConfig = options.roles ?? {}
   // Metadata is keyed by normalized name and intentionally retained across
   // disconnects so it survives reconnects. The key space is bounded by the
   // device names the user actually owns, so this does not grow without bound.
@@ -112,6 +114,27 @@ export function createMidiPorts(access: MIDIAccess, options: MidiPortsOptions = 
         () => ports.get(key),
         (onChange) => emitter.on('statechange', () => onChange()),
         options,
+      )
+    },
+    role(name) {
+      const candidates = roleConfig[name] ?? []
+      return resolveRole(candidates, roleAssignments.get(name), (c) => ports.get(c), resolve)
+    },
+    assignRole(name, portName) {
+      if (!(name in roleConfig)) throw new Error(`Unknown role '${name}'`)
+      if (portName == null) roleAssignments.delete(name)
+      else roleAssignments.set(name, resolve(portName))
+      scheduleSave()
+    },
+    get unresolvedRoles() {
+      return Object.keys(roleConfig).filter(
+        (name) =>
+          !resolveRole(
+            roleConfig[name] ?? [],
+            roleAssignments.get(name),
+            (c) => ports.get(c),
+            resolve,
+          ),
       )
     },
     on(event, handler) {

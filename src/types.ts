@@ -18,6 +18,8 @@ export interface MidiPortsOptions {
   normalize?: (raw: string) => string
   /** Opt-in persistence of metadata and role assignments. */
   persist?: PersistOptions
+  /** Named roles, each an ordered list of candidate port names. */
+  roles?: Record<string, string[]>
 }
 
 /** Configuration describing how to group ports into named devices. */
@@ -102,6 +104,12 @@ export interface MidiPorts {
   device(name: string): Device | undefined
   /** Resolve once a port (by raw or canonical name) is present. */
   waitFor(name: string, options?: WaitOptions): Promise<Port>
+  /** Resolve a role to its first connected candidate (or a persisted override). */
+  role(name: string): Port | undefined
+  /** Set or clear (null) a persisted port override for a role. Throws on unknown role. */
+  assignRole(name: string, portName: string | null): void
+  /** Roles with no currently-connected candidate. */
+  readonly unresolvedRoles: string[]
   /** Subscribe to an event. Returns an unsubscribe function. */
   on(event: MidiPortEventType, handler: (event: MidiPortEvent) => void): () => void
   /** Remove a previously-registered handler. */
