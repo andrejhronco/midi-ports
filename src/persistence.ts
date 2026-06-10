@@ -41,11 +41,23 @@ export function createPersistController(options: PersistOptions): PersistControl
   const flush = (): void => {
     scheduled = false
     if (!storage || pending === undefined) return
+    let serialized: string
     try {
-      storage.setItem(options.key, JSON.stringify(pending))
+      serialized = JSON.stringify(pending)
+    } catch (err) {
+      // A serialize failure is a developer error (non-serializable metadata),
+      // worth surfacing — unlike a quota/availability failure below.
+      console.warn('[midi-ports] could not serialize persisted metadata:', err)
+      pending = undefined
+      return
+    }
+    try {
+      storage.setItem(options.key, serialized)
     } catch {
       // Quota/unavailable: degrade to in-memory silently.
     }
+    // `scheduled` is already false and `pending` is cleared only after a
+    // successful-or-degraded write; a later save() reschedules cleanly.
     pending = undefined
   }
 

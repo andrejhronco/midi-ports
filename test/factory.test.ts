@@ -204,13 +204,9 @@ describe('createMidiPorts', () => {
     const mp = createMidiPorts(midi.access, { persist: { key: 'app:midi', storage } })
     mp.get('k-board')?.set('color', 'green')
     await Promise.resolve()
-    expect(
-      (
-        JSON.parse(store.get('app:midi') as string) as {
-          ports: Record<string, Record<string, unknown>>
-        }
-      ).ports['k-board'],
-    ).toEqual({ color: 'green' })
+    const doc = JSON.parse(store.get('app:midi') as string)
+    expect(doc.ports['k-board']).toEqual({ color: 'green' })
+    expect(doc.devices).toEqual({})
   })
 })
 

@@ -21,11 +21,18 @@ export function createMidiPorts(access: MIDIAccess, options: MidiPortsOptions = 
   const roleAssignments = new Map<string, string>() // role -> canonical port name (used by roles task)
   const persist = options.persist ? createPersistController(options.persist) : undefined
 
+  const objectEntries = (val: unknown): [string, unknown][] =>
+    val !== null && typeof val === 'object' && !Array.isArray(val)
+      ? Object.entries(val as Record<string, unknown>)
+      : []
+
   if (persist) {
     const doc = persist.load()
-    for (const [k, v] of Object.entries(doc.ports ?? {})) metaStore.set(k, { ...v })
-    for (const [k, v] of Object.entries(doc.devices ?? {})) deviceMetaStore.set(k, { ...v })
-    for (const [k, v] of Object.entries(doc.roles ?? {})) roleAssignments.set(k, v)
+    for (const [k, v] of objectEntries(doc.ports))
+      metaStore.set(k, { ...(v as Record<string, unknown>) })
+    for (const [k, v] of objectEntries(doc.devices))
+      deviceMetaStore.set(k, { ...(v as Record<string, unknown>) })
+    for (const [k, v] of objectEntries(doc.roles)) roleAssignments.set(k, String(v))
   }
 
   const mapToObj = <V>(m: Map<string, V>): Record<string, V> => Object.fromEntries(m.entries())
