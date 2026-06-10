@@ -111,15 +111,15 @@ midi-ports and [webmidi.js](https://webmidijs.org/) solve different problems and
 | **Layer** | Device & port topology | MIDI messaging |
 | **Good at** | Lookup by name, merging an input+output into one `Port`, grouping ports into devices, `notFound` tracking, persistent metadata, plug/unplug events | `playNote()`, `sendControlChange()`, parsed `noteon`/`controlchange`/`pitchbend` events, timing |
 
-You don't have to choose. webmidi.js exposes its underlying `MIDIAccess` as `WebMidi.interface`, so midi-ports can ride on the **same** access — one permission prompt, one source of truth:
+You don't have to choose. Enable both — the browser prompts for MIDI permission only once, and they observe the same devices. Use midi-ports to resolve topology and webmidi.js to send/parse messages, bridging by `displayName` (the raw OS name webmidi.js indexes by):
 
 ```ts
 import { WebMidi } from 'webmidi'
-import { createMidiPorts } from 'midi-ports'
+import { requestMidiPorts } from 'midi-ports'
 
-// webmidi.js owns the MIDIAccess; midi-ports wraps the same one.
 await WebMidi.enable({ sysex: true })
-const midi = createMidiPorts(WebMidi.interface, {
+const midi = await requestMidiPorts({
+  sysex: true,
   devices: {
     'k-mix': { ports: ['k-mix-control-surface'], meta: { color: '#f60' } },
   },
@@ -128,15 +128,16 @@ const midi = createMidiPorts(WebMidi.interface, {
 // midi-ports answers "which device, and is it here?" ...
 const surface = midi.get('k-mix-control-surface')
 if (surface) {
-  // ... webmidi.js does the messaging. Bridge by displayName (the raw OS
-  // name), which is what getInputByName / getOutputByName match on.
-  WebMidi.getOutputByName(surface.displayName)?.channels[1].playNote('C4')
+  // ... webmidi.js does the messaging, bridged by displayName.
+  WebMidi.getOutputByName(surface.displayName)?.playNote('C4', { channels: 1 })
 
   WebMidi.getInputByName(surface.displayName)?.addListener('noteon', (e) =>
     console.log('played', e.note.identifier),
   )
 }
 ```
+
+> Prefer a single `MIDIAccess`? webmidi.js exposes its own as `WebMidi.interface`, but it ships its own Web MIDI type definitions, so `createMidiPorts(WebMidi.interface as unknown as MIDIAccess, …)` needs a cast. Two enables is simpler and fully typed.
 
 Rule of thumb: reach for **midi-ports** to decide *what* you're talking to, and **webmidi.js** to decide *what to say*.
 
