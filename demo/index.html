@@ -57,14 +57,22 @@
           div.innerHTML = `<strong>${port.displayName}</strong> ${tags}
             <br /><small>${port.name} · ${port.manufacturer || 'unknown maker'}</small>`
           if (port.output) {
+            const rawName = port.displayName
             const btn = document.createElement('button')
             btn.textContent = 'Play C4 (webmidi.js)'
             btn.style.marginTop = '0.5rem'
             btn.onclick = () => {
-              // Bridge midi-ports → webmidi.js by displayName (the raw OS name).
-              const output = WebMidi.getOutputByName(port.displayName)
-              output?.playNote('C4', { channels: 1, duration: 300 })
-              log(`→ played C4 on ${port.displayName} via webmidi.js`)
+              // Re-resolve the live port by its raw OS name. midi.get()
+              // normalizes the lookup (since v3.1.0), so the device name works
+              // as-is — no need to pre-normalize to 'k-board'-style keys.
+              const live = midi.get(rawName)
+              if (!live?.output) {
+                log(`✗ ${rawName} has no output right now`)
+                return
+              }
+              // Bridge midi-ports → webmidi.js by the same raw name.
+              WebMidi.getOutputByName(rawName)?.playNote('C4', { channels: 1, duration: 300 })
+              log(`→ played C4 on ${rawName} (resolved via midi.get('${rawName}'))`)
             }
             div.appendChild(document.createElement('br'))
             div.appendChild(btn)
