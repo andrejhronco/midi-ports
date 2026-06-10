@@ -1,3 +1,7 @@
+import type { WaitOptions } from './wait.js'
+
+export type { WaitOptions } from './wait.js'
+
 /** Options accepted by createMidiPorts / requestMidiPorts. */
 export interface MidiPortsOptions {
   /** Request SysEx permission. Only used by requestMidiPorts. */
@@ -92,6 +96,8 @@ export interface MidiPorts {
   get(name: string): Port | undefined
   /** Look up a grouped device by name. */
   device(name: string): Device | undefined
+  /** Resolve once a port (by raw or canonical name) is present. */
+  waitFor(name: string, options?: WaitOptions): Promise<Port>
   /** Subscribe to an event. Returns an unsubscribe function. */
   on(event: MidiPortEventType, handler: (event: MidiPortEvent) => void): () => void
   /** Remove a previously-registered handler. */

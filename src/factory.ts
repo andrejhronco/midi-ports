@@ -4,6 +4,7 @@ import { MidiUnsupportedError } from './errors.js'
 import { createEmitter } from './events.js'
 import { createResolver } from './resolve.js'
 import type { Device, MidiPortEvent, MidiPorts, MidiPortsOptions, Port } from './types.js'
+import { waitForPort } from './wait.js'
 
 /** Wraps an existing MIDIAccess object. */
 export function createMidiPorts(access: MIDIAccess, options: MidiPortsOptions = {}): MidiPorts {
@@ -77,6 +78,14 @@ export function createMidiPorts(access: MIDIAccess, options: MidiPortsOptions = 
     },
     device(name) {
       return devices.get(name)
+    },
+    waitFor(name, options) {
+      const key = resolve(name)
+      return waitForPort(
+        () => ports.get(key),
+        (onChange) => emitter.on('statechange', () => onChange()),
+        options,
+      )
     },
     on(event, handler) {
       return emitter.on(event, handler)
