@@ -119,11 +119,25 @@
           const rawName = port.displayName
           const div = document.createElement('div')
           div.className = 'port'
-          const tags =
-            (port.input ? '<span class="tag">in</span>' : '') +
-            (port.output ? '<span class="tag">out</span>' : '')
-          div.innerHTML = `<strong>${port.displayName}</strong> ${tags}
-            <br /><small>canonical: <code>${port.name}</code> · ${port.manufacturer || 'unknown maker'}</small>`
+          // Build with textContent/append — device names are untrusted input and
+          // must never be interpolated into innerHTML.
+          const strong = document.createElement('strong')
+          strong.textContent = port.displayName
+          div.appendChild(strong)
+          for (const half of ['input', 'output']) {
+            if (!port[half]) continue
+            const tag = document.createElement('span')
+            tag.className = 'tag'
+            tag.textContent = half === 'input' ? 'in' : 'out'
+            div.append(' ', tag)
+          }
+          div.appendChild(document.createElement('br'))
+          const small = document.createElement('small')
+          small.append('canonical: ')
+          const code = document.createElement('code')
+          code.textContent = port.name
+          small.append(code, ` · ${port.manufacturer || 'unknown maker'}`)
+          div.appendChild(small)
 
           if (port.output) {
             const btn = document.createElement('button')
@@ -180,12 +194,16 @@
           const resolved = midi.role(name)
           const row = document.createElement('div')
           row.className = 'role'
-          row.innerHTML =
-            `<strong>${name}</strong> → ` +
-            (resolved
-              ? `<span class="resolved">${resolved.displayName}</span>`
-              : `<span class="unresolved">unresolved</span>`) +
-            ` <small>[${rolesConfig[name].join(', ')}]</small> `
+          // textContent/append, not innerHTML — name and device displayName are
+          // untrusted.
+          const strong = document.createElement('strong')
+          strong.textContent = name
+          const status = document.createElement('span')
+          status.className = resolved ? 'resolved' : 'unresolved'
+          status.textContent = resolved ? resolved.displayName : 'unresolved'
+          const cands = document.createElement('small')
+          cands.textContent = `[${rolesConfig[name].join(', ')}]`
+          row.append(strong, ' → ', status, ' ', cands, ' ')
 
           const sel = document.createElement('select')
           sel.innerHTML = '<option value="">(auto / clear override)</option>'
