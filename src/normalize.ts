@@ -18,7 +18,7 @@ export function normalize(value: string): string {
 function stripOsNoise(value: string): string {
   let v = value.trim()
   // Windows: unwrap the direction marker, e.g. 'MIDIIN2 (Name)' -> 'Name'.
-  const unwrapped = v.match(/^MIDI(?:IN|OUT)\d*\s*\((.+)\)$/i)?.[1]
+  const unwrapped = v.match(/^MIDI(?:IN|OUT)\d*\s*\((.+)\)$/)?.[1]
   if (unwrapped) v = unwrapped
   // Windows: strip a leading enumeration index, e.g. '2- Name' -> 'Name'.
   v = v.replace(/^\d+-\s*/, '')
