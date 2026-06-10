@@ -3,10 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>midi-ports demo</title>
+    <title>midi-ports + webmidi.js demo</title>
     <style>
       body { font: 14px/1.5 system-ui, sans-serif; margin: 2rem; max-width: 720px; }
       h1 { font-size: 1.2rem; }
+      .sub { color: #666; margin-top: -0.5rem; }
+      .sub b { color: #333; }
       button { font: inherit; padding: 0.3rem 0.7rem; cursor: pointer; }
       .port { border: 1px solid #ddd; border-radius: 6px; padding: 0.6rem 0.8rem; margin: 0.5rem 0; }
       .port small { color: #666; }
@@ -16,15 +18,19 @@
     </style>
   </head>
   <body>
-    <h1>midi-ports demo</h1>
+    <h1>midi-ports + webmidi.js demo</h1>
+    <p class="sub"><b>midi-ports</b> resolves the device topology · <b>webmidi.js</b> sends &amp; parses messages</p>
     <p><button id="start">Request MIDI access</button> <span id="status">idle</span></p>
     <div id="ports"></div>
     <h2 style="font-size: 1rem">Event log</h2>
     <div id="log"></div>
 
     <script type="module">
-      // Loads the built library. Run `pnpm run build` (or `pnpm run dev`) first.
+      // midi-ports is loaded from the local build — run `pnpm run build` (or
+      // `pnpm run dev`) first. webmidi.js is pulled from a CDN as ESM so the
+      // demo needs no bundler.
       import { requestMidiPorts } from '../dist/index.js'
+      import { WebMidi } from 'https://esm.sh/webmidi@3.1.16'
 
       const $ = (id) => document.getElementById(id)
       const log = (msg) => {
@@ -33,7 +39,7 @@
         el.scrollTop = el.scrollHeight
       }
 
-      let midi
+      let midi // midi-ports instance (topology)
 
       function render() {
         const container = $('ports')
@@ -52,12 +58,13 @@
             <br /><small>${port.name} · ${port.manufacturer || 'unknown maker'}</small>`
           if (port.output) {
             const btn = document.createElement('button')
-            btn.textContent = 'Send test note (C4)'
+            btn.textContent = 'Play C4 (webmidi.js)'
             btn.style.marginTop = '0.5rem'
             btn.onclick = () => {
-              port.send([0x90, 60, 100]) // note on,  ch1, C4, vel 100
-              setTimeout(() => port.send([0x80, 60, 0]), 300) // note off
-              log(`→ sent test note to ${port.name}`)
+              // Bridge midi-ports → webmidi.js by displayName (the raw OS name).
+              const output = WebMidi.getOutputByName(port.displayName)
+              output?.playNote('C4', { channels: 1, duration: 300 })
+              log(`→ played C4 on ${port.displayName} via webmidi.js`)
             }
             div.appendChild(document.createElement('br'))
             div.appendChild(btn)
@@ -66,26 +73,35 @@
         }
       }
 
-      // Log incoming messages from every input.
+      // Let webmidi.js parse incoming messages on every input midi-ports found.
       function listenToInputs() {
         for (const port of midi.ports.values()) {
-          if (port.input) {
-            port.input.onmidimessage = (e) =>
-              log(`← ${port.name}: [${Array.from(e.data).join(', ')}]`)
-          }
+          if (!port.input) continue
+          const input = WebMidi.getInputByName(port.displayName)
+          if (!input) continue
+          input.removeListener() // clear before re-attaching to avoid duplicates
+          input.addListener('noteon', (e) =>
+            log(`♪ ${port.displayName}: noteon ${e.note.identifier} (vel ${e.note.rawAttack})`),
+          )
+          input.addListener('noteoff', (e) => log(`♪ ${port.displayName}: noteoff ${e.note.identifier}`))
+          input.addListener('controlchange', (e) =>
+            log(`🎛 ${port.displayName}: CC ${e.controller.number} = ${e.rawValue}`),
+          )
         }
       }
 
       $('start').onclick = async () => {
         try {
-          // set sysex: true if your device needs SysEx (extra permission prompt)
+          // Enable both. The browser prompts for permission only once; both
+          // libraries then observe the same devices. (sysex: true if needed.)
+          await WebMidi.enable({ sysex: false })
           midi = await requestMidiPorts({ sysex: false })
           $('status').textContent = 'connected'
           log(`access granted — ${midi.ports.size} port(s)`)
           render()
           listenToInputs()
 
-          // React to plugging/unplugging devices live.
+          // React to plugging/unplugging devices live (midi-ports topology).
           midi.on('statechange', ({ type, port }) => {
             log(`• ${type}: ${port.name}`)
             render()

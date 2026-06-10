@@ -143,7 +143,7 @@ Rule of thumb: reach for **midi-ports** to decide *what* you're talking to, and 
 
 ## Demo
 
-A runnable, dependency-free demo lives in [`demo/index.html`](demo/index.html): request access, list connected ports, send a test note, and watch hot-plug events live. Build the library first, then serve the repo root:
+A runnable demo lives in [`demo/index.html`](demo/index.html): midi-ports lists connected ports and tracks hot-plug, while [webmidi.js](https://webmidijs.org/) (loaded from a CDN) plays a note and parses incoming messages — the [Using with webmidi.js](#using-with-webmidijs) split, live. Build the library first, then serve the repo root:
 
 ```bash
 pnpm run build
