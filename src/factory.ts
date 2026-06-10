@@ -16,6 +16,7 @@ export function createMidiPorts(access: MIDIAccess, options: MidiPortsOptions = 
   const emitter = createEmitter()
   const resolve = createResolver({ normalize: options.normalize, aliases: options.aliases })
 
+  // onChange (write-through persistence) is wired in a later task; omitted here.
   let ports: Map<string, Port> = buildPorts(access, metaStore, resolve)
   let devices: Map<string, Device>
   let notFound: string[]

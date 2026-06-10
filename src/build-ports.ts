@@ -28,6 +28,8 @@ export function buildPorts(
     const name = resolve(device.name ?? '')
     const entry: Accumulated = accumulated.get(name) ?? {
       displayName: device.name ?? '',
+      // Manufacturer uses the built-in normalize, not the resolver: aliases /
+      // custom normalize are port-name concerns, not manufacturer metadata.
       manufacturer: normalize(device.manufacturer ?? ''),
     }
     if (kind === 'input') entry.inputID = device.id

@@ -171,6 +171,13 @@ describe('createMidiPorts', () => {
     const mp = createMidiPorts(midi.access, { normalize: (raw) => raw.toUpperCase() })
     expect(mp.get('FUNKY NAME')?.inputID).toBe('in-1')
   })
+
+  it('resolves a non-canonical config port name for device membership', () => {
+    const midi = createMockMidi([{ id: 'in-1', name: 'K-Board', type: 'input' }])
+    const mp = createMidiPorts(midi.access, { devices: { kb: { ports: ['K-Board'] } } })
+    expect(mp.device('kb')?.get('k-board')?.inputID).toBe('in-1')
+    expect(mp.device('kb')?.get('K-Board')?.inputID).toBe('in-1')
+  })
 })
 
 describe('requestMidiPorts', () => {

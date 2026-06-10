@@ -35,7 +35,7 @@ export function buildDevices(
     const memberPorts = new Map<string, Port>()
     for (const portName of deviceConfig.ports) {
       const port = ports.get(resolve(portName))
-      if (port) memberPorts.set(portName, port)
+      if (port) memberPorts.set(resolve(portName), port)
       else notFound.add(portName)
     }
 
