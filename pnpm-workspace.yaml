@@ -1,0 +1,3 @@
+# esbuild (used by tsup/vitest) needs its install script to fetch its binary.
+allowBuilds:
+  esbuild: true
