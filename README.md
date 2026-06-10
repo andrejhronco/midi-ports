@@ -106,6 +106,96 @@ Event semantics (the `type` on each event payload):
 
 The `connect` channel receives only `connect` events, the `disconnect` channel only `disconnect` events, and the `statechange` channel receives all three (`connect`, `disconnect`, and `change`).
 
+## Cross-platform names
+
+The built-in `normalize()` strips OS-specific decorations so that the input and output halves of a device merge into one key and lookups are portable across operating systems:
+
+- **Windows** — unwraps `MIDIIN`/`MIDIOUT` direction markers (e.g. `MIDIIN2 (Launchkey)` → `launchkey`) and strips a leading numeric index (`2- Name` → `name`).
+- **Linux/ALSA** — removes a trailing ` MIDI <n>` port designator and a trailing `:<n>` client:port suffix.
+
+**Caveat:** the heuristics optimise for the common single-device case and can false-merge rigs with duplicate names or multi-port expanders. Use `aliases` or a custom `normalize` for those:
+
+```ts
+const midi = createMidiPorts(access, {
+  // map variant names to the canonical key
+  aliases: { 'k-mix': ['K-Mix Audio Control', 'K-Mix Ctrl'] },
+  // or replace normalization entirely
+  normalize: (raw) => raw.toLowerCase().replace(/\s+/g, '-'),
+})
+```
+
+`midi.get()` accepts the raw OS name or the canonical normalized key — both resolve.
+
+## Persistence
+
+Opt in to write-through storage of port/device metadata and role assignments:
+
+```ts
+const midi = createMidiPorts(access, {
+  persist: { key: 'my-app:midi' },
+})
+```
+
+The state is hydrated before the first build and written on every change (coalesced to one write per microtask). `storage` defaults to `localStorage`; inject any `StorageAdapter` (`getItem` / `setItem` / `removeItem`) for SSR, tests, or `sessionStorage`:
+
+```ts
+persist: { key: 'my-app:midi', storage: sessionStorage }
+```
+
+If storage is unavailable or quota is exceeded the library degrades silently.
+
+## Roles
+
+Name a priority-ordered list of port candidates per role:
+
+```ts
+const midi = createMidiPorts(access, {
+  roles: {
+    'drum-out': ['sp-404', 'launchpad'],
+  },
+})
+
+midi.role('drum-out')                    // first connected candidate (or persisted override)
+midi.assignRole('drum-out', 'launchpad') // set a persisted override
+midi.assignRole('drum-out', null)        // clear the override
+midi.unresolvedRoles                     // roles with no connected candidate
+```
+
+`assignRole` throws if the role name is not in the config.
+
+## Waiting for a device
+
+Resolve as soon as a port is present, or wait for it to connect:
+
+```ts
+const port = await midi.waitFor('k-board')
+// resolves immediately if already connected, else on the next connect event
+
+const port = await midi.waitFor('k-board', {
+  requireBoth: true,   // wait for both input AND output (default: either half)
+  timeout: 5000,       // reject with MidiTimeoutError after 5 s
+  signal: controller.signal, // reject with the abort reason on abort
+})
+```
+
+## Testing
+
+Unit-test MIDI apps without hardware using the bundled mock:
+
+```ts
+import { createMockMidi } from 'midi-ports/testing'
+import { createMidiPorts } from 'midi-ports'
+
+const { access, connect, sent } = createMockMidi([
+  { id: 'in-1', name: 'K-Board', type: 'input' },
+])
+const midi = createMidiPorts(access)
+
+connect({ id: 'out-1', name: 'K-Board', type: 'output' })
+midi.get('k-board')?.send([144, 60, 127])
+console.log(sent) // [{ id: 'out-1', data: [144, 60, 127] }]
+```
+
 ## Using with webmidi.js
 
 midi-ports and [webmidi.js](https://webmidijs.org/) solve different problems and compose well:
@@ -158,9 +248,15 @@ npx serve .        # then open /demo/index.html
 
 - `requestMidiPorts(options?)` → `Promise<MidiPorts>` — requests access, then wraps it. Throws `MidiUnsupportedError` if Web MIDI is unavailable.
 - `createMidiPorts(access, options?)` → `MidiPorts` — wraps an existing `MIDIAccess`.
-- `MidiPorts`: `access`, `ports`, `devices`, `notFound`, `get(name)`, `device(name)`, `on(event, handler)`, `off(event, handler)`, `dispose()`.
+- `MidiPortsOptions`: `sysex?`, `software?`, `devices?`, `aliases?`, `normalize?`, `persist?`, `roles?`.
+- `MidiPorts`: `access`, `ports`, `devices`, `notFound`, `get(name)`, `device(name)`, `waitFor(name, options?)`, `role(name)`, `assignRole(name, portName | null)`, `unresolvedRoles`, `on(event, handler)`, `off(event, handler)`, `dispose()`.
 - `Port`: `name`, `displayName`, `manufacturer`, `inputID?`, `outputID?`, `input?`, `output?`, `isConnected`, `meta`, `send(data, timestamp?)`, `set(key, value)`.
 - `Device`: `name`, `ports`, `meta`, `get(portName)`, `set(key, value)`.
+- `WaitOptions`: `timeout?`, `signal?`, `requireBoth?`.
+- `PersistOptions`: `key`, `storage?`.
+- `StorageAdapter`: `getItem(key)`, `setItem(key, value)`, `removeItem(key)`.
+- `MidiTimeoutError` — thrown by `waitFor` on timeout.
+- `createMockMidi(specs?)` — from `midi-ports/testing`; returns `{ access, sent, connect, disconnect }`.
 
 ## Migrating from v2
 
