@@ -40,10 +40,28 @@
       import { WebMidi } from 'https://esm.sh/webmidi@3.1.16'
 
       const $ = (id) => document.getElementById(id)
-      const log = (msg) => {
+
+      // Batched, bounded logging. High-rate messages (e.g. aftertouch) can
+      // arrive faster than the DOM can render; appending to textContent per
+      // message is O(n) and forces a reflow each time, so a backlog builds up
+      // and keeps printing after you stop. Instead, buffer lines and flush once
+      // per animation frame, capping the buffer so it can't grow unbounded.
+      const MAX_LOG_LINES = 300
+      const logLines = []
+      let flushScheduled = false
+      const flushLog = () => {
+        flushScheduled = false
         const el = $('log')
-        el.textContent += `${new Date().toLocaleTimeString()}  ${msg}\n`
+        el.textContent = logLines.join('\n')
         el.scrollTop = el.scrollHeight
+      }
+      const log = (msg) => {
+        logLines.push(`${new Date().toLocaleTimeString()}  ${msg}`)
+        if (logLines.length > MAX_LOG_LINES) logLines.splice(0, logLines.length - MAX_LOG_LINES)
+        if (!flushScheduled) {
+          flushScheduled = true
+          requestAnimationFrame(flushLog)
+        }
       }
 
       let midi // midi-ports instance (topology)
