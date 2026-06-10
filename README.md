@@ -100,6 +100,15 @@ Event semantics (the `type` on each event payload):
 
 The `connect` channel receives only `connect` events, the `disconnect` channel only `disconnect` events, and the `statechange` channel receives all three (`connect`, `disconnect`, and `change`).
 
+## Demo
+
+A runnable, dependency-free demo lives in [`demo/index.html`](demo/index.html): request access, list connected ports, send a test note, and watch hot-plug events live. Build the library first, then serve the repo root:
+
+```bash
+pnpm run build
+npx serve .        # then open /demo/index.html
+```
+
 ## API
 
 - `requestMidiPorts(options?)` → `Promise<MidiPorts>` — requests access, then wraps it. Throws `MidiUnsupportedError` if Web MIDI is unavailable.

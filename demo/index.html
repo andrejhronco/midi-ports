@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>midi-ports demo</title>
+    <style>
+      body { font: 14px/1.5 system-ui, sans-serif; margin: 2rem; max-width: 720px; }
+      h1 { font-size: 1.2rem; }
+      button { font: inherit; padding: 0.3rem 0.7rem; cursor: pointer; }
+      .port { border: 1px solid #ddd; border-radius: 6px; padding: 0.6rem 0.8rem; margin: 0.5rem 0; }
+      .port small { color: #666; }
+      .tag { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: #eee; margin-left: 4px; }
+      #log { background: #111; color: #0f0; padding: 0.8rem; height: 220px; overflow: auto;
+             font: 12px/1.4 ui-monospace, monospace; border-radius: 6px; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <h1>midi-ports demo</h1>
+    <p><button id="start">Request MIDI access</button> <span id="status">idle</span></p>
+    <div id="ports"></div>
+    <h2 style="font-size: 1rem">Event log</h2>
+    <div id="log"></div>
+
+    <script type="module">
+      // Loads the built library. Run `pnpm run build` (or `pnpm run dev`) first.
+      import { requestMidiPorts } from '../dist/index.js'
+
+      const $ = (id) => document.getElementById(id)
+      const log = (msg) => {
+        const el = $('log')
+        el.textContent += `${new Date().toLocaleTimeString()}  ${msg}\n`
+        el.scrollTop = el.scrollHeight
+      }
+
+      let midi
+
+      function render() {
+        const container = $('ports')
+        container.innerHTML = ''
+        if (!midi.ports.size) {
+          container.textContent = 'No ports connected. Plug something in.'
+          return
+        }
+        for (const port of midi.ports.values()) {
+          const div = document.createElement('div')
+          div.className = 'port'
+          const tags =
+            (port.input ? '<span class="tag">in</span>' : '') +
+            (port.output ? '<span class="tag">out</span>' : '')
+          div.innerHTML = `<strong>${port.displayName}</strong> ${tags}
+            <br /><small>${port.name} · ${port.manufacturer || 'unknown maker'}</small>`
+          if (port.output) {
+            const btn = document.createElement('button')
+            btn.textContent = 'Send test note (C4)'
+            btn.style.marginTop = '0.5rem'
+            btn.onclick = () => {
+              port.send([0x90, 60, 100]) // note on,  ch1, C4, vel 100
+              setTimeout(() => port.send([0x80, 60, 0]), 300) // note off
+              log(`→ sent test note to ${port.name}`)
+            }
+            div.appendChild(document.createElement('br'))
+            div.appendChild(btn)
+          }
+          container.appendChild(div)
+        }
+      }
+
+      // Log incoming messages from every input.
+      function listenToInputs() {
+        for (const port of midi.ports.values()) {
+          if (port.input) {
+            port.input.onmidimessage = (e) =>
+              log(`← ${port.name}: [${Array.from(e.data).join(', ')}]`)
+          }
+        }
+      }
+
+      $('start').onclick = async () => {
+        try {
+          // set sysex: true if your device needs SysEx (extra permission prompt)
+          midi = await requestMidiPorts({ sysex: false })
+          $('status').textContent = 'connected'
+          log(`access granted — ${midi.ports.size} port(s)`)
+          render()
+          listenToInputs()
+
+          // React to plugging/unplugging devices live.
+          midi.on('statechange', ({ type, port }) => {
+            log(`• ${type}: ${port.name}`)
+            render()
+            listenToInputs()
+          })
+        } catch (err) {
+          $('status').textContent = 'error'
+          log(`ERROR: ${err.message}`)
+        }
+      }
+    </script>
+  </body>
+</html>
