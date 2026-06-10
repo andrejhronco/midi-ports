@@ -2,6 +2,8 @@
 
 Type-safe [Web MIDI](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API) helper. Wrap an `MIDIAccess` object and access input/output ports **by name** — with grouped devices, not-found tracking, custom metadata, and hot-plug events.
 
+midi-ports handles **device & port topology** — discovering ports, merging an input/output pair into one handle, grouping them into logical devices, tracking what's missing, and reacting to plug/unplug. It deliberately does **not** parse or build MIDI messages. For note/CC helpers and message parsing, pair it with [webmidi.js](https://webmidijs.org/) — see [Using with webmidi.js](#using-with-webmidijs).
+
 > Browser support: https://caniuse.com/midi
 
 ## Install
@@ -99,6 +101,44 @@ Event semantics (the `type` on each event payload):
 - **`change`** — delivered on the `statechange` channel only, when a still-present port gains or loses a half (e.g. an input-only port gains its output).
 
 The `connect` channel receives only `connect` events, the `disconnect` channel only `disconnect` events, and the `statechange` channel receives all three (`connect`, `disconnect`, and `change`).
+
+## Using with webmidi.js
+
+midi-ports and [webmidi.js](https://webmidijs.org/) solve different problems and compose well:
+
+| | midi-ports | webmidi.js |
+| --- | --- | --- |
+| **Layer** | Device & port topology | MIDI messaging |
+| **Good at** | Lookup by name, merging an input+output into one `Port`, grouping ports into devices, `notFound` tracking, persistent metadata, plug/unplug events | `playNote()`, `sendControlChange()`, parsed `noteon`/`controlchange`/`pitchbend` events, timing |
+
+You don't have to choose. webmidi.js exposes its underlying `MIDIAccess` as `WebMidi.interface`, so midi-ports can ride on the **same** access — one permission prompt, one source of truth:
+
+```ts
+import { WebMidi } from 'webmidi'
+import { createMidiPorts } from 'midi-ports'
+
+// webmidi.js owns the MIDIAccess; midi-ports wraps the same one.
+await WebMidi.enable({ sysex: true })
+const midi = createMidiPorts(WebMidi.interface, {
+  devices: {
+    'k-mix': { ports: ['k-mix-control-surface'], meta: { color: '#f60' } },
+  },
+})
+
+// midi-ports answers "which device, and is it here?" ...
+const surface = midi.get('k-mix-control-surface')
+if (surface) {
+  // ... webmidi.js does the messaging. Bridge by displayName (the raw OS
+  // name), which is what getInputByName / getOutputByName match on.
+  WebMidi.getOutputByName(surface.displayName)?.channels[1].playNote('C4')
+
+  WebMidi.getInputByName(surface.displayName)?.addListener('noteon', (e) =>
+    console.log('played', e.note.identifier),
+  )
+}
+```
+
+Rule of thumb: reach for **midi-ports** to decide *what* you're talking to, and **webmidi.js** to decide *what to say*.
 
 ## Demo
 
