@@ -30,4 +30,7 @@ jobs:
           version: pnpm exec changeset version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # setup-node's registry-url writes an .npmrc that reads NODE_AUTH_TOKEN;
+          # NPM_TOKEN alone leaves it empty and publishes anonymously (E404).
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
