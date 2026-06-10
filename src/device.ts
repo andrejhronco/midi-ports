@@ -1,3 +1,4 @@
+import { normalize } from './normalize.js'
 import type { Device, Port } from './types.js'
 
 export interface CreateDeviceParams {
@@ -17,7 +18,7 @@ export function createDevice(params: CreateDeviceParams): Device {
       return meta
     },
     get(portName) {
-      return ports.get(portName)
+      return ports.get(normalize(portName))
     },
     set(key, value) {
       meta[key] = value

@@ -71,7 +71,7 @@ export function createMidiPorts(access: MIDIAccess, options: MidiPortsOptions = 
       return notFound
     },
     get(name) {
-      return ports.get(name)
+      return ports.get(normalize(name))
     },
     device(name) {
       return devices.get(name)

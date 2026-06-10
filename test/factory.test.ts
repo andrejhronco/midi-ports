@@ -17,6 +17,22 @@ describe('createMidiPorts', () => {
     expect(mp.ports.size).toBe(1)
   })
 
+  it('get() accepts the raw device name as well as the normalized key', () => {
+    const midi = createMockMidi([{ id: 'in-1', name: 'K Board', type: 'input' }])
+    const mp = createMidiPorts(midi.access)
+    // 'K Board' normalizes to 'k-board'; both forms (and casing) resolve.
+    expect(mp.get('k-board')?.inputID).toBe('in-1')
+    expect(mp.get('K Board')?.inputID).toBe('in-1')
+    expect(mp.get('K BOARD')?.inputID).toBe('in-1')
+  })
+
+  it('device.get() accepts the raw port name too', () => {
+    const midi = createMockMidi([{ id: 'in-1', name: 'K-Mix Audio Control', type: 'input' }])
+    const mp = createMidiPorts(midi.access, { devices: config })
+    expect(mp.device('k-mix')?.get('K-Mix Audio Control')?.inputID).toBe('in-1')
+    expect(mp.device('k-mix')?.get('k-mix-audio-control')?.inputID).toBe('in-1')
+  })
+
   it('builds devices and notFound from config', () => {
     const midi = createMockMidi([{ id: 'in-1', name: 'K-Mix Audio Control', type: 'input' }])
     const mp = createMidiPorts(midi.access, { devices: config })

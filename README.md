@@ -32,6 +32,8 @@ If you already have an `MIDIAccess` object, use `createMidiPorts(access, options
 
 `midi.ports` is a `ReadonlyMap<string, Port>` of every connected port, keyed by a normalized name (lowercased, spaces → hyphens, commas removed). An input and an output that share a name are merged into one `Port`.
 
+`midi.get(name)` normalizes its argument, so the raw device name works too — `midi.get('K Board')` and `midi.get('k-board')` resolve to the same port. (`Device.get(portName)` does the same.)
+
 ```ts
 for (const port of midi.ports.values()) {
   console.log(port.name, port.displayName, port.manufacturer)
