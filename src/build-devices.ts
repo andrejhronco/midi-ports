@@ -1,4 +1,5 @@
 import { createDevice } from './device.js'
+import type { Normalizer } from './resolve.js'
 import type { Device, DevicesConfig, Port } from './types.js'
 
 export interface BuiltDevices {
@@ -16,6 +17,8 @@ export function buildDevices(
   config: DevicesConfig,
   ports: ReadonlyMap<string, Port>,
   deviceMetaStore: Map<string, Record<string, unknown>>,
+  resolve: Normalizer,
+  onChange?: () => void,
 ): BuiltDevices {
   const devices = new Map<string, Device>()
   // A port name expected by multiple devices should appear once; a Set both
@@ -31,12 +34,15 @@ export function buildDevices(
 
     const memberPorts = new Map<string, Port>()
     for (const portName of deviceConfig.ports) {
-      const port = ports.get(portName)
-      if (port) memberPorts.set(portName, port)
+      const port = ports.get(resolve(portName))
+      if (port) memberPorts.set(resolve(portName), port)
       else notFound.add(portName)
     }
 
-    devices.set(deviceName, createDevice({ name: deviceName, ports: memberPorts, meta }))
+    devices.set(
+      deviceName,
+      createDevice({ name: deviceName, ports: memberPorts, meta, resolve, onChange }),
+    )
   }
 
   return { devices, notFound: [...notFound] }

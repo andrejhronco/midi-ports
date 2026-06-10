@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { buildDevices } from '../src/build-devices.js'
 import { buildPorts } from '../src/build-ports.js'
+import { createResolver } from '../src/resolve.js'
 import type { DevicesConfig } from '../src/types.js'
 import { createMockMidi } from './helpers/mock-midi.js'
+
+const resolve = createResolver()
 
 const config: DevicesConfig = {
   'k-mix': {
@@ -19,8 +22,8 @@ describe('buildDevices', () => {
       { id: 'in-2', name: 'K-Mix Control Surface', type: 'input' },
       { id: 'in-3', name: 'K-Board', type: 'input' },
     ])
-    const ports = buildPorts(midi.access, new Map())
-    const { devices, notFound } = buildDevices(config, ports, new Map())
+    const ports = buildPorts(midi.access, new Map(), resolve)
+    const { devices, notFound } = buildDevices(config, ports, new Map(), resolve)
 
     expect(notFound).toEqual([])
     expect(devices.get('k-mix')?.ports.size).toBe(2)
@@ -30,8 +33,8 @@ describe('buildDevices', () => {
 
   it('reports expected-but-missing ports in notFound', () => {
     const midi = createMockMidi([{ id: 'in-3', name: 'K-Board', type: 'input' }])
-    const ports = buildPorts(midi.access, new Map())
-    const { devices, notFound } = buildDevices(config, ports, new Map())
+    const ports = buildPorts(midi.access, new Map(), resolve)
+    const { devices, notFound } = buildDevices(config, ports, new Map(), resolve)
 
     expect(notFound).toEqual(['k-mix-audio-control', 'k-mix-control-surface'])
     expect(devices.get('k-mix')?.ports.size).toBe(0)
@@ -40,12 +43,12 @@ describe('buildDevices', () => {
 
   it('reuses device metadata objects from the store across rebuilds', () => {
     const midi = createMockMidi([{ id: 'in-3', name: 'K-Board', type: 'input' }])
-    const ports = buildPorts(midi.access, new Map())
+    const ports = buildPorts(midi.access, new Map(), resolve)
     const store = new Map<string, Record<string, unknown>>()
 
-    const first = buildDevices(config, ports, store)
+    const first = buildDevices(config, ports, store, resolve)
     first.devices.get('k-board')?.set('label', 'mine')
-    const second = buildDevices(config, ports, store)
+    const second = buildDevices(config, ports, store, resolve)
 
     expect(second.devices.get('k-board')?.meta).toEqual({ label: 'mine' })
   })
@@ -56,8 +59,8 @@ describe('buildDevices', () => {
       'dev-b': { ports: ['shared-port'] },
     }
     const midi = createMockMidi()
-    const ports = buildPorts(midi.access, new Map())
-    const { notFound } = buildDevices(shared, ports, new Map())
+    const ports = buildPorts(midi.access, new Map(), resolve)
+    const { notFound } = buildDevices(shared, ports, new Map(), resolve)
     expect(notFound).toEqual(['shared-port'])
   })
 })

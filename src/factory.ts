@@ -2,38 +2,70 @@ import { buildDevices } from './build-devices.js'
 import { buildPorts } from './build-ports.js'
 import { MidiUnsupportedError } from './errors.js'
 import { createEmitter } from './events.js'
-import { normalize } from './normalize.js'
+import { createPersistController } from './persistence.js'
+import { createResolver } from './resolve.js'
+import { resolveRole } from './roles.js'
 import type { Device, MidiPortEvent, MidiPorts, MidiPortsOptions, Port } from './types.js'
+import { waitForPort } from './wait.js'
 
 /** Wraps an existing MIDIAccess object. */
 export function createMidiPorts(access: MIDIAccess, options: MidiPortsOptions = {}): MidiPorts {
   const config = options.devices ?? {}
+  const roleConfig = options.roles ?? {}
   // Metadata is keyed by normalized name and intentionally retained across
   // disconnects so it survives reconnects. The key space is bounded by the
   // device names the user actually owns, so this does not grow without bound.
   const metaStore = new Map<string, Record<string, unknown>>()
   const deviceMetaStore = new Map<string, Record<string, unknown>>()
   const emitter = createEmitter()
+  const resolve = createResolver({ normalize: options.normalize, aliases: options.aliases })
 
-  let ports: Map<string, Port> = buildPorts(access, metaStore)
+  const roleAssignments = new Map<string, string>() // role -> canonical port name
+  const persist = options.persist ? createPersistController(options.persist) : undefined
+
+  const objectEntries = (val: unknown): [string, unknown][] =>
+    val !== null && typeof val === 'object' && !Array.isArray(val)
+      ? Object.entries(val as Record<string, unknown>)
+      : []
+
+  if (persist) {
+    const doc = persist.load()
+    for (const [k, v] of objectEntries(doc.ports))
+      metaStore.set(k, { ...(v as Record<string, unknown>) })
+    for (const [k, v] of objectEntries(doc.devices))
+      deviceMetaStore.set(k, { ...(v as Record<string, unknown>) })
+    for (const [k, v] of objectEntries(doc.roles)) roleAssignments.set(k, String(v))
+  }
+
+  const mapToObj = <V>(m: Map<string, V>): Record<string, V> => Object.fromEntries(m.entries())
+  const scheduleSave = (): void => {
+    persist?.save({
+      ports: mapToObj(metaStore),
+      devices: mapToObj(deviceMetaStore),
+      roles: mapToObj(roleAssignments),
+    })
+  }
+
+  // scheduleSave is passed as onChange so metadata writes are persisted automatically.
+  let ports: Map<string, Port> = buildPorts(access, metaStore, resolve, scheduleSave)
   let devices: Map<string, Device>
   let notFound: string[]
 
   const rebuild = (): void => {
-    ports = buildPorts(access, metaStore)
-    const built = buildDevices(config, ports, deviceMetaStore)
+    ports = buildPorts(access, metaStore, resolve, scheduleSave)
+    const built = buildDevices(config, ports, deviceMetaStore, resolve, scheduleSave)
     devices = built.devices
     notFound = built.notFound
   }
 
-  const initial = buildDevices(config, ports, deviceMetaStore)
+  const initial = buildDevices(config, ports, deviceMetaStore, resolve, scheduleSave)
   devices = initial.devices
   notFound = initial.notFound
 
   const handleStateChange = (raw: MIDIConnectionEvent): void => {
     const changed = raw.port
     if (!changed) return
-    const name = normalize(changed.name ?? '')
+    const name = resolve(changed.name ?? '')
 
     const previous = ports.get(name)
     rebuild()
@@ -71,10 +103,39 @@ export function createMidiPorts(access: MIDIAccess, options: MidiPortsOptions = 
       return notFound
     },
     get(name) {
-      return ports.get(normalize(name))
+      return ports.get(resolve(name))
     },
     device(name) {
       return devices.get(name)
+    },
+    waitFor(name, options) {
+      const key = resolve(name)
+      return waitForPort(
+        () => ports.get(key),
+        (onChange) => emitter.on('statechange', () => onChange()),
+        options,
+      )
+    },
+    role(name) {
+      const candidates = roleConfig[name] ?? []
+      return resolveRole(candidates, roleAssignments.get(name), (c) => ports.get(c), resolve)
+    },
+    assignRole(name, portName) {
+      if (!(name in roleConfig)) throw new Error(`Unknown role '${name}'`)
+      if (portName == null) roleAssignments.delete(name)
+      else roleAssignments.set(name, resolve(portName))
+      scheduleSave()
+    },
+    get unresolvedRoles() {
+      return Object.keys(roleConfig).filter(
+        (name) =>
+          !resolveRole(
+            roleConfig[name] ?? [],
+            roleAssignments.get(name),
+            (c) => ports.get(c),
+            resolve,
+          ),
+      )
     },
     on(event, handler) {
       return emitter.on(event, handler)

@@ -3,24 +3,34 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>midi-ports demo — native &amp; webmidi.js messaging</title>
+    <title>midi-ports 3.2.0 demo</title>
     <style>
-      body { font: 14px/1.5 system-ui, sans-serif; margin: 2rem; max-width: 720px; }
+      body { font: 14px/1.5 system-ui, sans-serif; margin: 2rem; max-width: 760px; }
       h1 { font-size: 1.2rem; }
+      h2 { font-size: 1rem; margin: 1.2rem 0 0.4rem; }
       .sub { color: #666; margin-top: -0.5rem; }
       .sub b { color: #333; }
       button { font: inherit; padding: 0.3rem 0.7rem; cursor: pointer; }
+      input[type="text"] { font: inherit; padding: 0.25rem 0.4rem; }
       label { margin-right: 0.8rem; }
       #modeRow { color: #444; }
+      .panel { border: 1px solid #cdd; background: #f6f9f9; border-radius: 8px; padding: 0.4rem 0.9rem 0.9rem; margin: 0.8rem 0; }
+      .panel h2 { margin-top: 0.8rem; }
+      .hint { color: #678; font-size: 12px; }
       .port { border: 1px solid #ddd; border-radius: 6px; padding: 0.6rem 0.8rem; margin: 0.5rem 0; }
       .port small { color: #666; }
+      .port .lbl { margin-top: 0.4rem; display: block; color: #555; }
       .tag { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: #eee; margin-left: 4px; }
+      .role { padding: 0.3rem 0; border-bottom: 1px dashed #dde; }
+      .role:last-child { border-bottom: 0; }
+      .resolved { color: #161; font-weight: 600; }
+      .unresolved { color: #a40; font-style: italic; }
       #log { background: #111; color: #0f0; padding: 0.8rem; height: 220px; overflow: auto;
              font: 12px/1.4 ui-monospace, monospace; border-radius: 6px; white-space: pre-wrap; }
     </style>
   </head>
   <body>
-    <h1>midi-ports demo</h1>
+    <h1>midi-ports 3.2.0 demo</h1>
     <p class="sub"><b>midi-ports</b> resolves the device topology · messaging via <b>native Web MIDI</b> or <b>webmidi.js</b></p>
     <p><button id="start">Request MIDI access</button> <span id="status">idle</span></p>
     <p id="modeRow" hidden>
@@ -28,8 +38,34 @@
       <label><input type="radio" name="mode" value="native" /> native Web MIDI (raw bytes)</label>
       <label><input type="radio" name="mode" value="webmidi" checked /> webmidi.js (parsed)</label>
     </p>
+
+    <div id="panel" class="panel" hidden>
+      <h2>Roles <span class="hint">— priority-ordered candidates; resolves the first connected one</span></h2>
+      <p>
+        <input id="roleName" type="text" placeholder="role name (e.g. drum-out)" size="18" />
+        <input id="roleCands" type="text" placeholder="candidates, comma-separated (raw or canonical names)" size="40" />
+        <button id="addRole">Add role</button>
+      </p>
+      <div id="roles"></div>
+      <p id="unresolved" class="hint"></p>
+
+      <h2>waitFor <span class="hint">— resolves when a port appears (10s timeout)</span></h2>
+      <p>
+        <input id="waitName" type="text" placeholder="port name to wait for" size="24" />
+        <button id="waitBtn">waitFor (10s)</button>
+        <span class="hint">tip: start the wait, then plug the device in</span>
+      </p>
+
+      <h2>Persistence <span class="hint">— labels below persist to localStorage and survive reload</span></h2>
+      <p class="hint">
+        Each port card has a “label” field written via <code>port.set('label', …)</code> with
+        <code>persist</code> enabled. Set one, then reload the page — it rehydrates.
+        <button id="clearPersist">Clear persisted demo data</button>
+      </p>
+    </div>
+
     <div id="ports"></div>
-    <h2 style="font-size: 1rem">Event log</h2>
+    <h2>Event log</h2>
     <div id="log"></div>
 
     <script type="module">
@@ -40,6 +76,9 @@
       import { WebMidi } from 'https://esm.sh/webmidi@3.1.16'
 
       const $ = (id) => document.getElementById(id)
+
+      const PERSIST_KEY = 'midi-ports-demo'
+      const ROLES_KEY = 'midi-ports-demo:roles'
 
       // Batched, bounded logging. High-rate messages (e.g. aftertouch) can
       // arrive faster than the DOM can render; appending to textContent per
@@ -66,7 +105,9 @@
 
       let midi // midi-ports instance (topology)
       let mode = 'webmidi' // messaging layer: 'native' | 'webmidi'
+      let rolesConfig = {} // { roleName: [candidate, ...] } — persisted by the demo itself
 
+      // ---- ports + persistence (label survives reload) -------------------------
       function render() {
         const container = $('ports')
         container.innerHTML = ''
@@ -75,34 +116,44 @@
           return
         }
         for (const port of midi.ports.values()) {
+          const rawName = port.displayName
           const div = document.createElement('div')
           div.className = 'port'
-          const tags =
-            (port.input ? '<span class="tag">in</span>' : '') +
-            (port.output ? '<span class="tag">out</span>' : '')
-          div.innerHTML = `<strong>${port.displayName}</strong> ${tags}
-            <br /><small>${port.name} · ${port.manufacturer || 'unknown maker'}</small>`
+          // Build with textContent/append — device names are untrusted input and
+          // must never be interpolated into innerHTML.
+          const strong = document.createElement('strong')
+          strong.textContent = port.displayName
+          div.appendChild(strong)
+          for (const half of ['input', 'output']) {
+            if (!port[half]) continue
+            const tag = document.createElement('span')
+            tag.className = 'tag'
+            tag.textContent = half === 'input' ? 'in' : 'out'
+            div.append(' ', tag)
+          }
+          div.appendChild(document.createElement('br'))
+          const small = document.createElement('small')
+          small.append('canonical: ')
+          const code = document.createElement('code')
+          code.textContent = port.name
+          small.append(code, ` · ${port.manufacturer || 'unknown maker'}`)
+          div.appendChild(small)
+
           if (port.output) {
-            const rawName = port.displayName
             const btn = document.createElement('button')
             btn.textContent = `Play C4 (${mode === 'native' ? 'native' : 'webmidi.js'})`
             btn.style.marginTop = '0.5rem'
             btn.onclick = () => {
-              // Re-resolve the live port by its raw OS name. midi.get()
-              // normalizes the lookup (since v3.1.0), so the device name works
-              // as-is — no need to pre-normalize to 'k-board'-style keys.
-              const live = midi.get(rawName)
+              const live = midi.get(rawName) // raw-name lookup (resolver normalizes)
               if (!live?.output) {
                 log(`✗ ${rawName} has no output right now`)
                 return
               }
               if (mode === 'native') {
-                // No extra library: send raw MIDI bytes via the Port's output.
-                live.send([0x90, 60, 100]) // note on, ch1, C4 (60), vel 100
+                live.send([0x90, 60, 100]) // note on, ch1, C4, vel 100
                 setTimeout(() => live.send([0x80, 60, 0]), 300) // note off
                 log(`→ played C4 on ${rawName} via native port.send()`)
               } else {
-                // webmidi.js helpers, bridged by the same raw name.
                 WebMidi.getOutputByName(rawName)?.playNote('C4', { channels: 1, duration: 300 })
                 log(`→ played C4 on ${rawName} via webmidi.js`)
               }
@@ -110,12 +161,110 @@
             div.appendChild(document.createElement('br'))
             div.appendChild(btn)
           }
+
+          // Persisted label: written through to storage, rehydrated on reload.
+          const lbl = document.createElement('label')
+          lbl.className = 'lbl'
+          lbl.textContent = 'label: '
+          const labelInput = document.createElement('input')
+          labelInput.type = 'text'
+          labelInput.placeholder = 'persisted label…'
+          labelInput.value = (port.meta && port.meta.label) || ''
+          labelInput.oninput = () => {
+            midi.get(rawName)?.set('label', labelInput.value)
+          }
+          lbl.appendChild(labelInput)
+          div.appendChild(lbl)
+
           container.appendChild(div)
         }
       }
 
-      // Detach listeners from both channels so switching modes (or re-running on
-      // hot-plug) never double-logs.
+      // ---- roles ---------------------------------------------------------------
+      function renderRoles() {
+        const container = $('roles')
+        container.innerHTML = ''
+        const names = Object.keys(rolesConfig)
+        if (!names.length) {
+          container.innerHTML = '<span class="hint">No roles yet — add one above.</span>'
+          $('unresolved').textContent = ''
+          return
+        }
+        for (const name of names) {
+          const resolved = midi.role(name)
+          const row = document.createElement('div')
+          row.className = 'role'
+          // textContent/append, not innerHTML — name and device displayName are
+          // untrusted.
+          const strong = document.createElement('strong')
+          strong.textContent = name
+          const status = document.createElement('span')
+          status.className = resolved ? 'resolved' : 'unresolved'
+          status.textContent = resolved ? resolved.displayName : 'unresolved'
+          const cands = document.createElement('small')
+          cands.textContent = `[${rolesConfig[name].join(', ')}]`
+          row.append(strong, ' → ', status, ' ', cands, ' ')
+
+          const sel = document.createElement('select')
+          sel.innerHTML = '<option value="">(auto / clear override)</option>'
+          for (const p of midi.ports.values()) {
+            const o = document.createElement('option')
+            o.value = p.displayName
+            o.textContent = `override → ${p.displayName}`
+            sel.appendChild(o)
+          }
+          sel.onchange = () => {
+            midi.assignRole(name, sel.value || null) // persisted via `persist`
+            log(`role '${name}' override: ${sel.value || '(cleared)'}`)
+            renderRoles()
+          }
+          row.appendChild(sel)
+          container.appendChild(row)
+        }
+        const unresolved = midi.unresolvedRoles
+        $('unresolved').textContent = unresolved.length
+          ? `unresolvedRoles: ${unresolved.join(', ')}`
+          : 'unresolvedRoles: [] (all resolved)'
+      }
+
+      $('addRole').onclick = async () => {
+        const name = $('roleName').value.trim()
+        const cands = $('roleCands').value.split(',').map((s) => s.trim()).filter(Boolean)
+        if (!name || !cands.length) {
+          log('enter a role name and at least one candidate')
+          return
+        }
+        rolesConfig = { ...rolesConfig, [name]: cands }
+        localStorage.setItem(ROLES_KEY, JSON.stringify(rolesConfig))
+        $('roleName').value = ''
+        $('roleCands').value = ''
+        await rebuildMidi() // recreate the instance with the new roles config
+        log(`role '${name}' added — candidates: ${cands.join(', ')}`)
+      }
+
+      // ---- waitFor -------------------------------------------------------------
+      $('waitBtn').onclick = async () => {
+        const name = $('waitName').value.trim()
+        if (!name) {
+          log('enter a port name to wait for')
+          return
+        }
+        log(`⏳ waitFor('${name}') — up to 10s…`)
+        try {
+          const port = await midi.waitFor(name, { timeout: 10000 })
+          log(`✓ waitFor resolved: ${port.displayName}`)
+        } catch (err) {
+          log(`✗ waitFor: ${err.name || 'Error'} — ${err.message}`)
+        }
+      }
+
+      $('clearPersist').onclick = () => {
+        localStorage.removeItem(PERSIST_KEY)
+        localStorage.removeItem(ROLES_KEY)
+        log('cleared persisted demo data — reload to start fresh')
+      }
+
+      // ---- messaging (native ⇄ webmidi.js) ------------------------------------
       function clearInputListeners() {
         for (const port of midi.ports.values()) {
           if (port.input) port.input.onmidimessage = null
@@ -128,12 +277,9 @@
         for (const port of midi.ports.values()) {
           if (!port.input) continue
           if (mode === 'native') {
-            // Native Web MIDI: midi-ports hands you the live MIDIInput; you get
-            // raw bytes and decode them yourself.
             port.input.onmidimessage = (e) =>
               log(`← ${port.displayName}: [${Array.from(e.data).join(', ')}] (native)`)
           } else {
-            // webmidi.js: parsed, friendly events.
             const input = WebMidi.getInputByName(port.displayName)
             if (!input) continue
             input.addListener('noteon', (e) =>
@@ -147,34 +293,49 @@
         }
       }
 
-      // Switch messaging layer live.
       for (const radio of document.querySelectorAll('input[name="mode"]')) {
         radio.onchange = (e) => {
           mode = e.target.value
           log(`— messaging layer: ${mode === 'native' ? 'native Web MIDI' : 'webmidi.js'}`)
-          render() // relabel the play buttons
-          listenToInputs() // re-attach on the chosen layer
+          render()
+          listenToInputs()
         }
+      }
+
+      // ---- lifecycle -----------------------------------------------------------
+      async function rebuildMidi() {
+        if (midi) midi.dispose()
+        // persist: metadata + role assignments survive reload.
+        // roles: candidate lists drive role()/unresolvedRoles.
+        midi = await requestMidiPorts({
+          sysex: false,
+          persist: { key: PERSIST_KEY },
+          roles: rolesConfig,
+        })
+        midi.on('statechange', ({ type, port }) => {
+          log(`• ${type}: ${port.name}`)
+          render()
+          renderRoles()
+          listenToInputs()
+        })
+        render()
+        renderRoles()
+        listenToInputs()
       }
 
       $('start').onclick = async () => {
         try {
-          // Enable both. The browser prompts for permission only once; both
-          // libraries then observe the same devices. (sysex: true if needed.)
           await WebMidi.enable({ sysex: false })
-          midi = await requestMidiPorts({ sysex: false })
+          try {
+            rolesConfig = JSON.parse(localStorage.getItem(ROLES_KEY) || '{}')
+          } catch {
+            rolesConfig = {}
+          }
+          await rebuildMidi()
           $('status').textContent = 'connected'
           $('modeRow').hidden = false
+          $('panel').hidden = false
           log(`access granted — ${midi.ports.size} port(s)`)
-          render()
-          listenToInputs()
-
-          // React to plugging/unplugging devices live (midi-ports topology).
-          midi.on('statechange', ({ type, port }) => {
-            log(`• ${type}: ${port.name}`)
-            render()
-            listenToInputs()
-          })
         } catch (err) {
           $('status').textContent = 'error'
           log(`ERROR: ${err.message}`)
