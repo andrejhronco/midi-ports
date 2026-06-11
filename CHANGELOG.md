@@ -1,5 +1,11 @@
 # midi-ports
 
+## 3.2.1
+
+### Patch Changes
+
+- 4327ec8: Docs: highlight the 3.2.0 features (cross-platform names, persistence, roles, `waitFor`, and the `midi-ports/testing` mock) in the README install section. No code changes.
+
 ## 3.2.0
 
 ### Minor Changes

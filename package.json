@@ -1,6 +1,6 @@
 {
   "name": "midi-ports",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "Type-safe Web MIDI helper: wrap MIDIAccess and access input/output ports by name, with grouped devices, not-found tracking, metadata, and hot-plug events.",
   "type": "module",
   "main": "./dist/index.js",
