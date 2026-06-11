@@ -12,6 +12,8 @@ midi-ports handles **device & port topology** — discovering ports, merging an 
 npm install midi-ports
 ```
 
+**New in 3.2.0:** [cross-platform name matching](#cross-platform-names) (strips Windows/Linux device-name noise so input/output halves merge and keys are portable), [opt-in persistence](#persistence) of metadata and role assignments, [named roles](#roles) with fallback resolution, and [`waitFor`](#waiting-for-a-device) to await a device — plus a [`midi-ports/testing`](#testing) mock for unit tests. All additive; see each section below.
+
 ## Quick start
 
 ```ts
