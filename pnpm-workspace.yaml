@@ -1,3 +1,9 @@
 # esbuild (used by tsup/vitest) needs its install script to fetch its binary.
 allowBuilds:
   esbuild: true
+
+# tsup 8.5.x still pins esbuild ^0.27; force >=0.28.1 for GHSA-g7r4-m6w7-qqqr
+# (arbitrary file read via the esbuild dev server on Windows). vite 8 accepts
+# ^0.28, so nothing else is affected. Drop once tsup bumps its own range.
+overrides:
+  esbuild: ^0.28.1
